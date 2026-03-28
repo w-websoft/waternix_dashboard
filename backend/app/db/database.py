@@ -16,9 +16,18 @@ async def init_pool() -> None:
     """앱 시작 시 연결 풀 초기화"""
     global _pool
     try:
-        db_url = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
+        from urllib.parse import urlparse, unquote
+
+        raw = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
+        parsed = urlparse(raw)
+
+        # 비밀번호에 특수문자(# 등)가 있을 때도 안전하게 처리
         _pool = await asyncpg.create_pool(
-            db_url,
+            host=parsed.hostname,
+            port=parsed.port or 5432,
+            user=parsed.username,
+            password=unquote(parsed.password) if parsed.password else None,
+            database=parsed.path.lstrip("/"),
             min_size=2,
             max_size=10,
             command_timeout=30,
