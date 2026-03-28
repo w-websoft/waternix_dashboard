@@ -123,9 +123,10 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onAdd?: (data: FormData) => void;
+  onSuccess?: () => void;
 }
 
-export default function AddEquipmentModal({ open, onClose, onAdd }: Props) {
+export default function AddEquipmentModal({ open, onClose, onAdd, onSuccess }: Props) {
   const [step, setStep] = useState<Step>('type');
   const [form, setForm] = useState<FormData>(INITIAL_FORM);
   const [success, setSuccess] = useState(false);
@@ -180,6 +181,7 @@ export default function AddEquipmentModal({ open, onClose, onAdd }: Props) {
       });
       setSuccess(true);
       onAdd?.(form);
+      onSuccess?.();
       setTimeout(() => {
         setSuccess(false);
         setStep('type');

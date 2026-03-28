@@ -20,11 +20,12 @@ function buildCompanyReport(companyId: string | 'all') {
   const filters = mockFilters.filter(f => equipment.some(e => e.id === f.equipmentId));
 
   const totalVolume = equipment.reduce((s, e) => s + (e.sensorData?.dailyVolume || 0) * 30, 0);
+  const totalCost = maintenances.reduce((s, m) => s + (m.cost || 0), 0);
   const monthlyData = MONTHLY_LABELS.map((month, i) => ({
     month,
-    volume: Math.floor(totalVolume * (0.85 + i * 0.03) + Math.random() * 50000),
+    volume: Math.floor(totalVolume * (0.85 + i * 0.03)),
     maintenance: Math.floor(maintenances.length * (0.1 + i * 0.05)),
-    cost: Math.floor(maintenances.reduce((s, m) => s + (m.cost || 0), 0) * (0.08 + i * 0.02)),
+    cost: Math.floor(totalCost * (0.08 + i * 0.02)),
   }));
 
   const typeData = Object.entries(EQUIPMENT_TYPE_CONFIG).map(([type, conf]) => ({

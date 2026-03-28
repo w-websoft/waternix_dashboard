@@ -1,13 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { mockEquipment } from '@/lib/mock-data';
+import { equipmentApi } from '@/lib/api';
 import { STATUS_CONFIG, EQUIPMENT_TYPE_CONFIG, formatRelativeTime, cn } from '@/lib/utils';
-import { Equipment } from '@/types';
-import { Search, MapPin, List, Plus, ChevronDown, Wifi, WifiOff, LayoutDashboard, ChevronRight, Download } from 'lucide-react';
+import { Search, MapPin, List, Plus, ChevronDown, Wifi, WifiOff, LayoutDashboard, ChevronRight, Download, RefreshCw } from 'lucide-react';
 import AddEquipmentModal from '@/components/equipment/AddEquipmentModal';
 
 const EquipmentMap = dynamic(() => import('@/components/map/EquipmentMap'), {
@@ -15,7 +14,7 @@ const EquipmentMap = dynamic(() => import('@/components/map/EquipmentMap'), {
   loading: () => <div className="w-full h-full bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 text-sm">지도 로딩 중...</div>,
 });
 
-const TYPE_FILTER_OPTIONS: { value: string; label: string }[] = [
+const TYPE_FILTER_OPTIONS = [
   { value: 'all', label: '전체 유형' },
   { value: 'ro', label: '역삼투압' },
   { value: 'di', label: '초순수/DI' },
@@ -25,20 +24,85 @@ const TYPE_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: 'softener', label: '연수기' },
 ];
 
+interface ApiEquipment {
+  id: string;
+  name?: string;
+  model: string;
+  serial_no: string;
+  equipment_type: string;
+  status: string;
+  company_name?: string;
+  company_id?: string;
+  city?: string;
+  district?: string;
+  address?: string;
+  comm_type?: string;
+  install_date?: string;
+  warranty_end?: string;
+  last_seen?: string;
+  capacity_lph?: number;
+  lat?: number;
+  lng?: number;
+}
+
+function normalizeEquipment(eq: ApiEquipment) {
+  return {
+    ...eq,
+    serialNo: eq.serial_no,
+    companyName: eq.company_name,
+    equipmentType: eq.equipment_type,
+    commType: eq.comm_type,
+    lastSeen: eq.last_seen,
+    capacityLph: eq.capacity_lph,
+    installDate: eq.install_date,
+    warrantyEnd: eq.warranty_end,
+    sensorData: undefined,
+  };
+}
+
 export default function EquipmentPage() {
+  const [equipment, setEquipment] = useState<ApiEquipment[]>([]);
+  const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
-  const [selectedEquipment, setSelectedEquipment] = useState<Equipment | undefined>();
   const [showAddModal, setShowAddModal] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params: Record<string, string> = {};
+      if (search) params.search = search;
+      if (statusFilter !== 'all') params.status = statusFilter;
+      if (typeFilter !== 'all') params.equipment_type = typeFilter;
+      const data = await equipmentApi.list(params);
+      setEquipment(data as ApiEquipment[]);
+    } catch {
+      setEquipment([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [search, statusFilter, typeFilter]);
+
+  useEffect(() => {
+    const t = setTimeout(load, 300);
+    return () => clearTimeout(t);
+  }, [load]);
+
+  const filtered = equipment;
+
+  const statusCounts = equipment.reduce((acc, eq) => {
+    acc[eq.status] = (acc[eq.status] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
 
   const handleExportCsv = () => {
     const headers = ['장비명', '모델', '시리얼번호', '업체', '지역', '유형', '통신', '상태', '용량(L/h)', '설치일', '보증만료'];
     const rows = filtered.map(eq => [
-      eq.name || '', eq.model, eq.serialNo, eq.companyName || '',
-      `${eq.city || ''} ${eq.district || ''}`, eq.equipmentType, eq.commType || '',
-      eq.status, eq.capacityLph || '', eq.installDate || '', eq.warrantyEnd || '',
+      eq.name || '', eq.model, eq.serial_no, eq.company_name || '',
+      `${eq.city || ''} ${eq.district || ''}`, eq.equipment_type, eq.comm_type || '',
+      eq.status, eq.capacity_lph || '', eq.install_date || '', eq.warranty_end || '',
     ]);
     const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
@@ -48,21 +112,12 @@ export default function EquipmentPage() {
     a.click(); URL.revokeObjectURL(url);
   };
 
-  const filtered = mockEquipment.filter(eq => {
-    const matchSearch = !search || [eq.name, eq.model, eq.serialNo, eq.companyName, eq.address, eq.city]
-      .some(v => v?.toLowerCase().includes(search.toLowerCase()));
-    const matchStatus = statusFilter === 'all' || eq.status === statusFilter;
-    const matchType = typeFilter === 'all' || eq.equipmentType === typeFilter;
-    return matchSearch && matchStatus && matchType;
-  });
-
-  const statusCounts = mockEquipment.reduce((acc, eq) => {
-    acc[eq.status] = (acc[eq.status] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+  const mapEquipment = filtered
+    .filter(eq => eq.lat && eq.lng)
+    .map(normalizeEquipment);
 
   return (
-    <DashboardLayout title="장비 관리" subtitle={`총 ${mockEquipment.length}대 장비 | 필터 결과 ${filtered.length}대`}>
+    <DashboardLayout title="장비 관리" subtitle={`총 ${equipment.length}대 장비 | 필터 결과 ${filtered.length}대`}>
       {/* Status Quick Filters */}
       <div className="flex gap-2 mb-4 flex-wrap">
         {Object.entries(STATUS_CONFIG).map(([status, config]) => (
@@ -120,6 +175,9 @@ export default function EquipmentPage() {
           </button>
         </div>
 
+        <button onClick={load} className="p-2 text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-lg">
+          <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
+        </button>
         <button onClick={handleExportCsv} className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50">
           <Download className="w-4 h-4" /> CSV
         </button>
@@ -127,26 +185,33 @@ export default function EquipmentPage() {
           <Plus className="w-4 h-4" /> <span className="hidden sm:inline">장비 등록</span><span className="sm:hidden">등록</span>
         </button>
       </div>
-      <AddEquipmentModal open={showAddModal} onClose={() => setShowAddModal(false)} />
+
+      <AddEquipmentModal open={showAddModal} onClose={() => setShowAddModal(false)} onSuccess={load} />
 
       {/* Content */}
       {viewMode === 'map' ? (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden h-[300px] sm:h-[500px] lg:h-[600px]">
           <EquipmentMap
-            equipment={filtered}
-            selectedId={selectedEquipment?.id}
-            onSelect={setSelectedEquipment}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            equipment={mapEquipment as any}
+            selectedId={undefined}
+            onSelect={() => {}}
             height="100%"
           />
+        </div>
+      ) : loading ? (
+        <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-3">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-12 bg-slate-100 rounded animate-pulse" />
+          ))}
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           {/* 모바일 카드 뷰 */}
           <div className="sm:hidden divide-y divide-slate-100">
             {filtered.map((eq) => {
-              const statusConf = STATUS_CONFIG[eq.status];
-              const typeConf = EQUIPMENT_TYPE_CONFIG[eq.equipmentType];
-              const sensor = eq.sensorData;
+              const statusConf = STATUS_CONFIG[eq.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.offline;
+              const typeConf = EQUIPMENT_TYPE_CONFIG[eq.equipment_type as keyof typeof EQUIPMENT_TYPE_CONFIG] || { icon: '🔧', label: eq.equipment_type };
               return (
                 <Link key={eq.id} href={`/equipment/${eq.id}`} className="flex items-start gap-3 px-4 py-3.5 hover:bg-slate-50 transition-colors">
                   <span className="text-2xl flex-shrink-0 mt-0.5">{typeConf.icon}</span>
@@ -155,13 +220,10 @@ export default function EquipmentPage() {
                       <span className="font-semibold text-slate-800 text-sm truncate">{eq.name || eq.model}</span>
                       <span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full border flex-shrink-0', statusConf.bg, statusConf.color)}>{statusConf.label}</span>
                     </div>
-                    <div className="text-xs text-slate-400 truncate">{eq.companyName} · {eq.city}</div>
+                    <div className="text-xs text-slate-400 truncate">{eq.company_name} · {eq.city}</div>
                     <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500">
-                      {sensor?.flowRate !== undefined && sensor.flowRate > 0 && <span>💧 {sensor.flowRate.toFixed(1)} L/m</span>}
-                      {sensor?.outletTds !== undefined && (
-                        <span className={sensor.outletTds > 20 ? 'text-red-600 font-semibold' : ''}>{sensor.outletTds} ppm</span>
-                      )}
-                      <span>{eq.commType?.toUpperCase()}</span>
+                      <span>{eq.comm_type?.toUpperCase() || '-'}</span>
+                      {eq.capacity_lph && <span>{eq.capacity_lph.toLocaleString('ko-KR')} L/h</span>}
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-300 flex-shrink-0 mt-1" />
@@ -175,16 +237,15 @@ export default function EquipmentPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  {['장비명 / 모델', '업체', '지역', '유형', '통신', '상태', '유량', 'TDS', '오늘 생산량', '마지막 수신', '배치도'].map(h => (
+                  {['장비명 / 모델', '업체', '지역', '유형', '통신', '상태', '용량', '설치일', '마지막 수신', '배치도'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filtered.map((eq) => {
-                  const statusConf = STATUS_CONFIG[eq.status];
-                  const typeConf = EQUIPMENT_TYPE_CONFIG[eq.equipmentType];
-                  const sensor = eq.sensorData;
+                  const statusConf = STATUS_CONFIG[eq.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.offline;
+                  const typeConf = EQUIPMENT_TYPE_CONFIG[eq.equipment_type as keyof typeof EQUIPMENT_TYPE_CONFIG] || { icon: '🔧', label: eq.equipment_type };
                   const isOnline = eq.status !== 'offline';
                   return (
                     <tr key={eq.id} className="hover:bg-blue-50/40 transition-colors group">
@@ -196,17 +257,17 @@ export default function EquipmentPage() {
                               {eq.name || eq.model}
                               <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover/link:opacity-100 text-blue-500 transition-opacity" />
                             </div>
-                            <div className="text-xs text-slate-400">{eq.model} · {eq.serialNo}</div>
+                            <div className="text-xs text-slate-400">{eq.model} · {eq.serial_no}</div>
                           </div>
                         </Link>
                       </td>
-                      <td className="px-4 py-3"><div className="text-xs text-slate-600 max-w-[130px] truncate">{eq.companyName}</div></td>
-                      <td className="px-4 py-3"><div className="text-xs text-slate-600">{eq.city}</div><div className="text-xs text-slate-400">{eq.district}</div></td>
+                      <td className="px-4 py-3"><div className="text-xs text-slate-600 max-w-[130px] truncate">{eq.company_name || '-'}</div></td>
+                      <td className="px-4 py-3"><div className="text-xs text-slate-600">{eq.city || '-'}</div><div className="text-xs text-slate-400">{eq.district || ''}</div></td>
                       <td className="px-4 py-3"><span className="text-xs text-slate-500">{typeConf.label}</span></td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
                           {isOnline ? <Wifi className="w-3 h-3 text-emerald-500" /> : <WifiOff className="w-3 h-3 text-slate-400" />}
-                          <span className="text-xs text-slate-500">{eq.commType?.replace('_', ' ').toUpperCase() || '-'}</span>
+                          <span className="text-xs text-slate-500">{eq.comm_type?.replace('_', ' ').toUpperCase() || '-'}</span>
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -215,14 +276,11 @@ export default function EquipmentPage() {
                           {statusConf.label}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-slate-700 font-medium text-xs">{sensor?.flowRate !== undefined && sensor.flowRate > 0 ? `${sensor.flowRate.toFixed(1)} L/m` : '-'}</td>
-                      <td className="px-4 py-3 text-xs">
-                        {sensor?.outletTds !== undefined ? (
-                          <span className={cn('font-medium', sensor.outletTds > 20 ? 'text-red-600' : 'text-slate-700')}>{sensor.outletTds} ppm</span>
-                        ) : '-'}
+                      <td className="px-4 py-3 text-slate-700 font-medium text-xs">
+                        {eq.capacity_lph ? `${eq.capacity_lph.toLocaleString('ko-KR')} L/h` : '-'}
                       </td>
-                      <td className="px-4 py-3 text-slate-700 text-xs font-medium">{sensor?.dailyVolume ? `${sensor.dailyVolume.toLocaleString('ko-KR')} L` : '-'}</td>
-                      <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">{formatRelativeTime(eq.lastSeen)}</td>
+                      <td className="px-4 py-3 text-xs text-slate-500">{eq.install_date || '-'}</td>
+                      <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">{formatRelativeTime(eq.last_seen)}</td>
                       <td className="px-4 py-3">
                         <Link href={`/equipment/${eq.id}/layout-editor`} onClick={e => e.stopPropagation()}
                           className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-teal-50 border border-transparent text-xs text-slate-500 hover:text-teal-600 transition-all font-medium whitespace-nowrap">
@@ -236,10 +294,11 @@ export default function EquipmentPage() {
             </table>
           </div>
 
-          {filtered.length === 0 && (
+          {filtered.length === 0 && !loading && (
             <div className="py-16 text-center text-slate-400">
               <Search className="w-12 h-12 mx-auto mb-3 opacity-30" />
-              <div>검색 결과가 없습니다</div>
+              <div className="font-medium mb-1">등록된 장비가 없습니다</div>
+              <div className="text-sm">장비 등록 버튼을 눌러 첫 번째 장비를 추가하세요</div>
             </div>
           )}
           <div className="px-4 py-3 border-t border-slate-100 text-xs text-slate-400 bg-slate-50">

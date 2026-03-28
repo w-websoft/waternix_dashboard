@@ -1,38 +1,54 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { mockConsumables, mockFilters } from '@/lib/mock-data';
+import { consumablesApi, filtersApi } from '@/lib/api';
+import type { ConsumablePayload, FilterPayload } from '@/lib/api';
 import { FILTER_STATUS_CONFIG, cn } from '@/lib/utils';
-import { Search, Plus, Package, AlertTriangle, Filter as FilterIcon } from 'lucide-react';
+import { Search, Plus, Package, AlertTriangle, Filter as FilterIcon, RefreshCw } from 'lucide-react';
 import AddInventoryModal from '@/components/consumable/AddInventoryModal';
 
 export default function ConsumablesPage() {
   const [activeTab, setActiveTab] = useState<'consumables' | 'filters'>('consumables');
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [consumables, setConsumables] = useState<ConsumablePayload[]>([]);
+  const [filters, setFilters] = useState<FilterPayload[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filteredConsumables = mockConsumables.filter(c =>
-    !search || [c.name, c.category, c.brand, c.partNo, c.supplier]
-      .some(v => v?.toLowerCase().includes(search.toLowerCase()))
-  );
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [cData, fData] = await Promise.all([
+        consumablesApi.list(search ? { search } : undefined),
+        filtersApi.list(search ? { search } : undefined),
+      ]);
+      setConsumables(cData as ConsumablePayload[]);
+      setFilters(fData as FilterPayload[]);
+    } catch {
+      setConsumables([]);
+      setFilters([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [search]);
 
-  const filteredFilters = mockFilters.filter(f =>
-    !search || [f.filterName, f.filterType, f.equipmentName, f.companyName, f.partNo]
-      .some(v => v?.toLowerCase().includes(search.toLowerCase()))
-  ).sort((a, b) => (b.usedPercent || 0) - (a.usedPercent || 0));
+  useEffect(() => {
+    const t = setTimeout(load, 300);
+    return () => clearTimeout(t);
+  }, [load]);
 
-  const lowStockCount = mockConsumables.filter(c => c.isLow).length;
-  const replaceNeededCount = mockFilters.filter(f => f.status === 'replace').length;
+  const lowStockCount = consumables.filter(c => c.is_low).length;
+  const replaceNeededCount = filters.filter(f => f.status === 'replace').length;
 
   return (
     <DashboardLayout title="소모품 / 재고 관리" subtitle="필터, 소모품 재고 및 교체 현황">
       {/* Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-4 sm:mb-6">
         {[
-          { label: '전체 소모품 종류', value: mockConsumables.length, unit: '종', color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: '전체 소모품 종류', value: consumables.length, unit: '종', color: 'text-blue-600', bg: 'bg-blue-50' },
           { label: '재고 부족 품목', value: lowStockCount, unit: '종', color: 'text-red-600', bg: 'bg-red-50', urgent: true },
-          { label: '관리 중인 필터', value: mockFilters.length, unit: '개', color: 'text-slate-600', bg: 'bg-slate-50' },
+          { label: '관리 중인 필터', value: filters.length, unit: '개', color: 'text-slate-600', bg: 'bg-slate-50' },
           { label: '교체 필요 필터', value: replaceNeededCount, unit: '개', color: 'text-orange-600', bg: 'bg-orange-50', urgent: true },
         ].map(item => (
           <div key={item.label} className={cn('bg-white rounded-xl border p-4', item.urgent ? 'border-red-200' : 'border-slate-200')}>
@@ -74,6 +90,9 @@ export default function ConsumablesPage() {
             className="w-full pl-10 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+        <button onClick={load} className="p-2 text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-lg">
+          <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
+        </button>
         <button
           onClick={() => setShowAddModal(true)}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
@@ -82,124 +101,161 @@ export default function ConsumablesPage() {
         </button>
       </div>
 
-      <AddInventoryModal open={showAddModal} onClose={() => setShowAddModal(false)} />
+      <AddInventoryModal
+        open={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSuccess={load}
+      />
 
-      {/* Consumables Tab */}
-      {activeTab === 'consumables' && (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500">
-                {['품목명', '카테고리', '부품번호', '브랜드', '공급업체', '단위', '재고량', '최소재고', '단가', '상태'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredConsumables.map(item => (
-                <tr key={item.id} className={cn('hover:bg-slate-50 transition-colors', item.isLow && 'bg-red-50/50')}>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <Package className={cn('w-4 h-4 flex-shrink-0', item.isLow ? 'text-red-400' : 'text-slate-400')} />
-                      <span className="font-medium text-slate-800">{item.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">{item.category}</span>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-slate-500 font-mono">{item.partNo || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-slate-600">{item.brand || '-'}</td>
-                  <td className="px-4 py-3 text-xs text-slate-500">{item.supplier}</td>
-                  <td className="px-4 py-3 text-sm text-slate-600">{item.unit}</td>
-                  <td className="px-4 py-3">
-                    <span className={cn('font-bold text-lg', item.isLow ? 'text-red-600' : 'text-slate-800')}>
-                      {item.stockQty}
-                    </span>
-                    {item.isLow && <AlertTriangle className="w-3.5 h-3.5 text-red-500 inline ml-1" />}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-500">{item.minQty}</td>
-                  <td className="px-4 py-3 text-sm font-medium text-slate-700">
-                    {item.unitCost ? `${item.unitCost.toLocaleString('ko-KR')}원` : '-'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={cn(
-                      'inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full',
-                      item.isLow ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    )}>
-                      {item.isLow ? '재고 부족' : '재고 충분'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {loading ? (
+        <div className="space-y-2">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-12 bg-slate-100 rounded-lg animate-pulse" />
+          ))}
         </div>
-      )}
-
-      {/* Filters Tab */}
-      {activeTab === 'filters' && (
-        <div className="space-y-3">
-          {filteredFilters.map(filter => {
-            const statusConf = FILTER_STATUS_CONFIG[filter.status];
-            const pct = filter.usedPercent || 0;
-            const barColor = pct >= 95 ? 'bg-red-500' : pct >= 80 ? 'bg-amber-400' : 'bg-emerald-500';
-            return (
-              <div
-                key={filter.id}
-                className={cn(
-                  'bg-white rounded-xl border p-5 transition-all hover:shadow-sm',
-                  filter.status === 'replace' ? 'border-red-200' : filter.status === 'warning' ? 'border-amber-200' : 'border-slate-200'
-                )}
-              >
-                <div className="flex items-start gap-4">
-                  <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0', statusConf.bg)}>
-                    <FilterIcon className={cn('w-5 h-5', statusConf.color)} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-slate-800">{filter.filterName}</span>
-                          <span className="text-xs text-slate-400">{filter.stage}단계</span>
-                          <span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full', statusConf.bg, statusConf.color)}>
-                            {statusConf.label}
-                          </span>
-                        </div>
-                        <div className="text-xs text-slate-500 mt-1">
-                          {filter.equipmentName} · {filter.companyName}
-                        </div>
-                        <div className="text-xs text-slate-400 mt-0.5">
-                          부품번호: {filter.partNo || '-'} · 공급사: {filter.supplier}
-                        </div>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <div className="text-2xl font-bold text-slate-800">{pct.toFixed(1)}%</div>
-                        <div className="text-xs text-slate-400">수명 사용</div>
-                      </div>
-                    </div>
-                    <div className="mt-3">
-                      <div className="flex justify-between text-xs text-slate-400 mb-1.5">
-                        <span>{filter.usedHours?.toFixed(0) || 0}h / {filter.lifeHours}h 사용</span>
-                        <span>{(filter.usedVolume || 0).toLocaleString('ko-KR')}L / {(filter.lifeVolume || 0).toLocaleString('ko-KR')}L</span>
-                      </div>
-                      <div className="w-full bg-slate-100 rounded-full h-2">
-                        <div
-                          className={cn('h-2 rounded-full transition-all', barColor)}
-                          style={{ width: `${Math.min(pct, 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                    <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
-                      <span>설치: {filter.installDate}</span>
-                      <span>교체 예정: <strong className={cn(pct >= 80 ? 'text-red-600' : 'text-slate-700')}>{filter.replaceDate}</strong></span>
-                      {filter.cost && <span>비용: {filter.cost.toLocaleString('ko-KR')}원</span>}
-                    </div>
-                  </div>
+      ) : (
+        <>
+          {/* Consumables Tab */}
+          {activeTab === 'consumables' && (
+            <>
+              {consumables.length === 0 ? (
+                <div className="py-20 text-center text-slate-400">
+                  <Package className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                  <div className="font-medium mb-1">등록된 소모품이 없습니다</div>
+                  <div className="text-sm">품목 등록 버튼을 눌러 소모품을 추가하세요</div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              ) : (
+                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500">
+                        {['품목명', '카테고리', '부품번호', '브랜드', '공급업체', '단위', '재고량', '최소재고', '단가', '상태'].map(h => (
+                          <th key={h} className="px-4 py-3 text-left">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {consumables.map(item => (
+                        <tr key={item.id} className={cn('hover:bg-slate-50 transition-colors', item.is_low && 'bg-red-50/50')}>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <Package className={cn('w-4 h-4 flex-shrink-0', item.is_low ? 'text-red-400' : 'text-slate-400')} />
+                              <span className="font-medium text-slate-800">{item.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">{item.category}</span>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-500 font-mono">{item.part_no || '-'}</td>
+                          <td className="px-4 py-3 text-sm text-slate-600">{item.brand || '-'}</td>
+                          <td className="px-4 py-3 text-xs text-slate-500">{item.supplier || '-'}</td>
+                          <td className="px-4 py-3 text-sm text-slate-600">{item.unit}</td>
+                          <td className="px-4 py-3">
+                            <span className={cn('font-bold text-lg', item.is_low ? 'text-red-600' : 'text-slate-800')}>
+                              {item.stock_qty}
+                            </span>
+                            {item.is_low && <AlertTriangle className="w-3.5 h-3.5 text-red-500 inline ml-1" />}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-slate-500">{item.min_qty}</td>
+                          <td className="px-4 py-3 text-sm font-medium text-slate-700">
+                            {item.unit_cost ? `${Number(item.unit_cost).toLocaleString('ko-KR')}원` : '-'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={cn(
+                              'inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full',
+                              item.is_low ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            )}>
+                              {item.is_low ? '재고 부족' : '재고 충분'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Filters Tab */}
+          {activeTab === 'filters' && (
+            <>
+              {filters.length === 0 ? (
+                <div className="py-20 text-center text-slate-400">
+                  <FilterIcon className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                  <div className="font-medium mb-1">등록된 필터가 없습니다</div>
+                  <div className="text-sm">필터 등록 버튼을 눌러 필터를 추가하세요</div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filters.map(filter => {
+                    const statusConf = FILTER_STATUS_CONFIG[filter.status as keyof typeof FILTER_STATUS_CONFIG] || FILTER_STATUS_CONFIG.normal;
+                    const pct = filter.used_percent || 0;
+                    const barColor = pct >= 95 ? 'bg-red-500' : pct >= 80 ? 'bg-amber-400' : 'bg-emerald-500';
+                    return (
+                      <div
+                        key={filter.id}
+                        className={cn(
+                          'bg-white rounded-xl border p-5 transition-all hover:shadow-sm',
+                          filter.status === 'replace' ? 'border-red-200' : filter.status === 'warning' ? 'border-amber-200' : 'border-slate-200'
+                        )}
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0', statusConf.bg)}>
+                            <FilterIcon className={cn('w-5 h-5', statusConf.color)} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-semibold text-slate-800">{filter.filter_name}</span>
+                                  {filter.stage && <span className="text-xs text-slate-400">{filter.stage}단계</span>}
+                                  <span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full', statusConf.bg, statusConf.color)}>
+                                    {statusConf.label}
+                                  </span>
+                                </div>
+                                {(filter.equipment_name || filter.company_name) && (
+                                  <div className="text-xs text-slate-500 mt-1">
+                                    {[filter.equipment_name, filter.company_name].filter(Boolean).join(' · ')}
+                                  </div>
+                                )}
+                                <div className="text-xs text-slate-400 mt-0.5">
+                                  {filter.part_no && `부품번호: ${filter.part_no}`}
+                                  {filter.part_no && filter.supplier && ' · '}
+                                  {filter.supplier && `공급사: ${filter.supplier}`}
+                                </div>
+                              </div>
+                              <div className="text-right flex-shrink-0">
+                                <div className="text-2xl font-bold text-slate-800">{pct.toFixed(1)}%</div>
+                                <div className="text-xs text-slate-400">수명 사용</div>
+                              </div>
+                            </div>
+                            <div className="mt-3">
+                              <div className="w-full bg-slate-100 rounded-full h-2">
+                                <div
+                                  className={cn('h-2 rounded-full transition-all', barColor)}
+                                  style={{ width: `${Math.min(pct, 100)}%` }}
+                                />
+                              </div>
+                            </div>
+                            {(filter.install_date || filter.replace_date) && (
+                              <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
+                                {filter.install_date && <span>설치: {filter.install_date}</span>}
+                                {filter.replace_date && (
+                                  <span>교체 예정: <strong className={cn(pct >= 80 ? 'text-red-600' : 'text-slate-700')}>{filter.replace_date}</strong></span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+        </>
       )}
     </DashboardLayout>
   );

@@ -39,9 +39,10 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onAdd?: (data: InventoryForm) => void;
+  onSuccess?: () => void;
 }
 
-export default function AddInventoryModal({ open, onClose, onAdd }: Props) {
+export default function AddInventoryModal({ open, onClose, onAdd, onSuccess }: Props) {
   const [form, setForm] = useState<InventoryForm>(INITIAL);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -83,6 +84,7 @@ export default function AddInventoryModal({ open, onClose, onAdd }: Props) {
       });
       setSaved(true);
       onAdd?.(form);
+      onSuccess?.();
       setTimeout(() => { setSaved(false); setForm(INITIAL); onClose(); }, 1800);
     } catch (e: unknown) {
       setApiError(e instanceof Error ? e.message : '등록 중 오류가 발생했습니다');

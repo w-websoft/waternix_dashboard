@@ -103,6 +103,7 @@ export const equipmentApi = {
 // ─── Consumables ──────────────────────────────────────────────────────────────
 
 export interface ConsumablePayload {
+  id?: string;
   name: string;
   category: string;
   part_no?: string;
@@ -113,6 +114,9 @@ export interface ConsumablePayload {
   unit_cost?: number;
   supplier?: string;
   description?: string;
+  is_low?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export const consumablesApi = {
@@ -152,4 +156,67 @@ export const maintenanceApi = {
   complete: (id: string, data: object) =>
     request<MaintenancePayload>(`/maintenance/${id}/complete`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id: string) => request<void>(`/maintenance/${id}`, { method: 'DELETE' }),
+};
+
+// ─── Alerts ───────────────────────────────────────────────────────────────────
+
+export interface AlertPayload {
+  id: string;
+  equipment_id?: string;
+  equipment_name?: string;
+  company_name?: string;
+  severity: string;
+  type: string;
+  title: string;
+  message?: string;
+  acknowledged: boolean;
+  process_step: string;
+  assignee?: string;
+  process_comment?: string;
+  process_updated_at?: string;
+  created_at: string;
+}
+
+export const alertsApi = {
+  list: (params?: Record<string, string | boolean | undefined>) => {
+    const clean: Record<string, string> = {};
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        if (v !== undefined) clean[k] = String(v);
+      }
+    }
+    const qs = Object.keys(clean).length ? '?' + new URLSearchParams(clean).toString() : '';
+    return request<AlertPayload[]>(`/alerts${qs}`);
+  },
+  create: (data: Partial<AlertPayload>) =>
+    request<AlertPayload>('/alerts', { method: 'POST', body: JSON.stringify(data) }),
+  process: (id: string, data: { process_step: string; assignee?: string; process_comment?: string }) =>
+    request<AlertPayload>(`/alerts/${id}/process`, { method: 'POST', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/alerts/${id}`, { method: 'DELETE' }),
+};
+
+// ─── Filters ──────────────────────────────────────────────────────────────────
+
+export interface FilterPayload {
+  id: string;
+  equipment_id?: string;
+  equipment_name?: string;
+  company_name?: string;
+  filter_name: string;
+  filter_type?: string;
+  stage?: number;
+  install_date?: string;
+  replace_date?: string;
+  used_percent: number;
+  status: string;
+  part_no?: string;
+  supplier?: string;
+  created_at: string;
+}
+
+export const filtersApi = {
+  list: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return request<FilterPayload[]>(`/filters${qs}`);
+  },
 };

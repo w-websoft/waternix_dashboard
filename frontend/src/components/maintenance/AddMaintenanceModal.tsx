@@ -40,9 +40,10 @@ interface Props {
   onClose: () => void;
   presetEquipmentId?: string;
   onAdd?: (data: MaintenanceForm) => void;
+  onSuccess?: () => void;
 }
 
-export default function AddMaintenanceModal({ open, onClose, presetEquipmentId, onAdd }: Props) {
+export default function AddMaintenanceModal({ open, onClose, presetEquipmentId, onAdd, onSuccess }: Props) {
   const [form, setForm] = useState<MaintenanceForm>({
     ...INITIAL,
     equipmentId: presetEquipmentId || '',
@@ -102,6 +103,7 @@ export default function AddMaintenanceModal({ open, onClose, presetEquipmentId, 
       });
       setSaved(true);
       onAdd?.(form);
+      onSuccess?.();
       setTimeout(() => { setSaved(false); setForm(INITIAL); onClose(); }, 1800);
     } catch (e: unknown) {
       setApiError(e instanceof Error ? e.message : '등록 중 오류가 발생했습니다');

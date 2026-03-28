@@ -12,6 +12,8 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.api import equipment, companies
 from app.api import consumables, maintenance
+from app.api import alerts as alerts_router
+from app.api import filters as filters_router
 from app.db.database import init_pool, close_pool
 
 # 로깅 설정
@@ -129,6 +131,8 @@ app.include_router(equipment.router, prefix="/api")
 app.include_router(companies.router, prefix="/api")
 app.include_router(consumables.router, prefix="/api")
 app.include_router(maintenance.router, prefix="/api")
+app.include_router(alerts_router.router, prefix="/api")
+app.include_router(filters_router.router, prefix="/api")
 
 # Socket.IO ASGI 앱 마운트
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
@@ -178,19 +182,56 @@ async def health_check():
 
 @app.get("/api/dashboard/summary", tags=["대시보드"])
 async def get_dashboard_summary():
-    """대시보드 KPI 요약 데이터"""
-    # TODO: DB 집계 쿼리
-    return {
-        "total_equipment": 14,
-        "normal_count": 8,
-        "warning_count": 3,
-        "error_count": 1,
-        "offline_count": 1,
-        "maintenance_count": 1,
-        "total_companies": 8,
-        "today_volume": 42690,
-        "monthly_volume": 1240500,
-        "pending_maintenance": 4,
-        "filter_replace": 3,
-        "unresolved_alerts": 6,
-    }
+    """대시보드 KPI 요약 데이터 - DB 실제 집계"""
+    from app.db.database import get_pool
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            eq = await conn.fetchrow("""
+                SELECT
+                    COUNT(*) AS total,
+                    COUNT(*) FILTER (WHERE status = 'normal') AS normal,
+                    COUNT(*) FILTER (WHERE status = 'warning') AS warning,
+                    COUNT(*) FILTER (WHERE status = 'error') AS error,
+                    COUNT(*) FILTER (WHERE status = 'offline') AS offline,
+                    COUNT(*) FILTER (WHERE status = 'maintenance') AS maintenance
+                FROM equipment
+            """)
+            companies_count = await conn.fetchval("SELECT COUNT(*) FROM companies WHERE status = 'active'")
+            maintenance_pending = await conn.fetchval(
+                "SELECT COUNT(*) FROM maintenance_records WHERE status IN ('scheduled','in_progress')"
+            )
+            filter_replace = await conn.fetchval(
+                "SELECT COUNT(*) FROM filters WHERE status IN ('replace','warning')"
+            )
+            alerts_unresolved = await conn.fetchval(
+                "SELECT COUNT(*) FROM alerts WHERE resolved_at IS NULL"
+            )
+            volume_row = await conn.fetchrow("""
+                SELECT
+                    COALESCE(SUM(daily_volume) FILTER (WHERE time >= NOW() - INTERVAL '1 day'), 0) AS today,
+                    COALESCE(SUM(daily_volume) FILTER (WHERE time >= NOW() - INTERVAL '30 days'), 0) AS monthly
+                FROM sensor_readings
+            """)
+            return {
+                "total_equipment": eq["total"] or 0,
+                "normal_count": eq["normal"] or 0,
+                "warning_count": eq["warning"] or 0,
+                "error_count": eq["error"] or 0,
+                "offline_count": eq["offline"] or 0,
+                "maintenance_count": eq["maintenance"] or 0,
+                "total_companies": companies_count or 0,
+                "today_volume": float(volume_row["today"] or 0),
+                "monthly_volume": float(volume_row["monthly"] or 0),
+                "pending_maintenance": maintenance_pending or 0,
+                "filter_replace": filter_replace or 0,
+                "unresolved_alerts": alerts_unresolved or 0,
+            }
+    except Exception as e:
+        logger.error(f"대시보드 집계 오류: {e}")
+        return {
+            "total_equipment": 0, "normal_count": 0, "warning_count": 0,
+            "error_count": 0, "offline_count": 0, "maintenance_count": 0,
+            "total_companies": 0, "today_volume": 0, "monthly_volume": 0,
+            "pending_maintenance": 0, "filter_replace": 0, "unresolved_alerts": 0,
+        }
