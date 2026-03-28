@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import KpiCard from '@/components/dashboard/KpiCard';
@@ -11,9 +11,10 @@ import { STATUS_CONFIG, EQUIPMENT_TYPE_CONFIG, formatRelativeTime, cn } from '@/
 import { mockDashboardSummary, mockEquipment, mockAlerts, mockMaintenanceRecords } from '@/lib/mock-data';
 import { Equipment } from '@/types';
 import Link from 'next/link';
+import AddEquipmentModal from '@/components/equipment/AddEquipmentModal';
 import {
   Droplets, AlertTriangle, Wrench, Package,
-  Activity, Zap, CheckCircle2, XCircle, LayoutDashboard,
+  Activity, Zap, CheckCircle2, XCircle, LayoutDashboard, Plus, Radio,
 } from 'lucide-react';
 
 const EquipmentMap = dynamic(() => import('@/components/map/EquipmentMap'), {
@@ -26,18 +27,46 @@ const EquipmentMap = dynamic(() => import('@/components/map/EquipmentMap'), {
 });
 
 export default function DashboardPage() {
-  const [selectedEquipment, setSelectedEquipment] = useState<Equipment | undefined>();
   const summary = mockDashboardSummary;
+  const [selectedEquipment, setSelectedEquipment] = useState<Equipment | undefined>();
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [liveVolume, setLiveVolume] = useState(summary.todayVolume);
   const unacknowledgedAlerts = mockAlerts.filter(a => !a.acknowledged);
   const upcomingMaintenance = mockMaintenanceRecords
     .filter(m => m.status === 'scheduled' || m.status === 'in_progress')
     .slice(0, 5);
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setLiveVolume(v => parseFloat((v + (Math.random() * 20)).toFixed(0)));
+    }, 4000);
+    return () => clearInterval(t);
+  }, []);
 
   return (
     <DashboardLayout
       title="실시간 대시보드"
       subtitle="전국 수처리 장비 현황 모니터링"
     >
+      {/* Live Status Bar */}
+      <div className="flex items-center justify-between mb-4 p-3 bg-slate-900 rounded-xl text-sm flex-wrap gap-3">
+        <div className="flex items-center gap-2 text-teal-400">
+          <Radio className="w-4 h-4 animate-pulse" />
+          <span className="font-semibold">실시간 모니터링</span>
+          <span className="text-slate-500 text-xs">· 3초마다 갱신</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-slate-400 text-xs">미처리 알림 {unacknowledgedAlerts.length}건</span>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-500 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" /> 장비 등록
+          </button>
+        </div>
+      </div>
+      <AddEquipmentModal open={showAddModal} onClose={() => setShowAddModal(false)} />
+
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-4 mb-6">
         <KpiCard
@@ -70,7 +99,7 @@ export default function DashboardPage() {
         />
         <KpiCard
           title="오늘 정수량"
-          value={summary.todayVolume.toLocaleString('ko-KR')}
+          value={liveVolume.toLocaleString('ko-KR')}
           unit="L"
           icon={Droplets}
           iconColor="text-cyan-600"
@@ -169,7 +198,7 @@ export default function DashboardPage() {
           <div className="bg-white rounded-xl border border-slate-200">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
               <h2 className="font-semibold text-slate-800">장비 현황 목록</h2>
-              <a href="/equipment" className="text-xs text-blue-600 hover:text-blue-700 font-medium">전체 보기 →</a>
+              <Link href="/equipment" className="text-xs text-blue-600 hover:text-blue-700 font-medium">전체 보기 →</Link>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -257,7 +286,7 @@ export default function DashboardPage() {
           <div className="bg-white rounded-xl border border-slate-200 p-5">
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-semibold text-slate-800">유지보수 일정</h2>
-              <a href="/maintenance" className="text-xs text-blue-600 hover:text-blue-700 font-medium">전체 보기 →</a>
+              <Link href="/maintenance" className="text-xs text-blue-600 hover:text-blue-700 font-medium">전체 보기 →</Link>
             </div>
             <div className="space-y-2">
               {upcomingMaintenance.map((m) => (

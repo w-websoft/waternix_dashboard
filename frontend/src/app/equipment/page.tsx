@@ -7,7 +7,8 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { mockEquipment } from '@/lib/mock-data';
 import { STATUS_CONFIG, EQUIPMENT_TYPE_CONFIG, formatRelativeTime, cn } from '@/lib/utils';
 import { Equipment } from '@/types';
-import { Search, MapPin, List, Plus, ChevronDown, Wifi, WifiOff, LayoutDashboard, ChevronRight } from 'lucide-react';
+import { Search, MapPin, List, Plus, ChevronDown, Wifi, WifiOff, LayoutDashboard, ChevronRight, Download } from 'lucide-react';
+import AddEquipmentModal from '@/components/equipment/AddEquipmentModal';
 
 const EquipmentMap = dynamic(() => import('@/components/map/EquipmentMap'), {
   ssr: false,
@@ -30,6 +31,22 @@ export default function EquipmentPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | undefined>();
+  const [showAddModal, setShowAddModal] = useState(false);
+
+  const handleExportCsv = () => {
+    const headers = ['장비명', '모델', '시리얼번호', '업체', '지역', '유형', '통신', '상태', '용량(L/h)', '설치일', '보증만료'];
+    const rows = filtered.map(eq => [
+      eq.name || '', eq.model, eq.serialNo, eq.companyName || '',
+      `${eq.city || ''} ${eq.district || ''}`, eq.equipmentType, eq.commType || '',
+      eq.status, eq.capacityLph || '', eq.installDate || '', eq.warrantyEnd || '',
+    ]);
+    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `waternix_equipment_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  };
 
   const filtered = mockEquipment.filter(eq => {
     const matchSearch = !search || [eq.name, eq.model, eq.serialNo, eq.companyName, eq.address, eq.city]
@@ -112,10 +129,20 @@ export default function EquipmentPage() {
           </button>
         </div>
 
-        <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+        <button
+          onClick={handleExportCsv}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors"
+        >
+          <Download className="w-4 h-4" /> CSV 내보내기
+        </button>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+        >
           <Plus className="w-4 h-4" /> 장비 등록
         </button>
       </div>
+      <AddEquipmentModal open={showAddModal} onClose={() => setShowAddModal(false)} />
 
       {/* Content */}
       {viewMode === 'map' ? (

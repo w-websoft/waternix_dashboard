@@ -16,11 +16,22 @@ import TextLabelNode, { TextLabelData } from '@/components/layout-editor/TextLab
 import { mockEquipment } from '@/lib/mock-data';
 import { EQUIPMENT_TYPE_CONFIG } from '@/lib/utils';
 import {
-  ArrowLeft, Save, ZoomIn, ZoomOut, Maximize2, Grid3X3,
-  Plus, Trash2, Upload, Image, Type, Cpu, Link2, RotateCcw,
-  Download, Eye, Settings2, ChevronRight, ChevronLeft,
-  Droplets, Activity, Gauge, Zap, LayoutDashboard
+  ArrowLeft, Save, Grid3X3,
+  Plus, Trash2, Upload, Cpu, Link2,
+  Download, Settings2, ChevronRight, ChevronLeft,
+  LayoutDashboard
 } from 'lucide-react';
+
+function generateNodeId(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+}
+
+function randomPosition(xBase: number, yBase: number, xSpread: number, ySpread: number) {
+  return {
+    x: xBase + Math.floor(Math.random() * xSpread),
+    y: yBase + Math.floor(Math.random() * ySpread),
+  };
+}
 
 const nodeTypes = {
   equipment: EquipmentNode,
@@ -209,7 +220,7 @@ function LayoutEditorInner({ id }: { id: string }) {
     const color = PIPE_COLORS[pipeType].stroke;
     const edge: Edge = {
       ...connection,
-      id: `e-${Date.now()}`,
+      id: generateNodeId('e'),
       type: 'smoothstep',
       animated: pipeType === 'water' || pipeType === 'signal',
       style: {
@@ -247,9 +258,9 @@ function LayoutEditorInner({ id }: { id: string }) {
     if (!file) return;
     const url = URL.createObjectURL(file);
     const newNode: Node = {
-      id: `img-${Date.now()}`,
+      id: generateNodeId('img'),
       type: 'image',
-      position: { x: 200 + Math.random() * 200, y: 200 + Math.random() * 200 },
+      position: randomPosition(200, 200, 200, 200),
       data: { label: file.name.replace(/\.[^/.]+$/, ''), imageUrl: url, width: 140, height: 140 } as ImageNodeData,
     };
     setNodes(nds => [...nds, newNode]);
@@ -258,9 +269,9 @@ function LayoutEditorInner({ id }: { id: string }) {
   const addEquipmentNode = (eq: typeof mockEquipment[0]) => {
     const typeConf = EQUIPMENT_TYPE_CONFIG[eq.equipmentType];
     const newNode: Node = {
-      id: `eq-${Date.now()}`,
+      id: generateNodeId('eq'),
       type: 'equipment',
-      position: { x: 100 + Math.random() * 400, y: 100 + Math.random() * 300 },
+      position: randomPosition(100, 100, 400, 300),
       data: {
         label: eq.name || eq.model,
         model: eq.model,
@@ -282,9 +293,9 @@ function LayoutEditorInner({ id }: { id: string }) {
   const addShapeNode = (type: string, label: string) => {
     const colors = { text: '#00d4aa', area: '#3b82f6', zone: '#8b5cf6' };
     const newNode: Node = {
-      id: `shape-${Date.now()}`,
+      id: generateNodeId('shape'),
       type: 'label',
-      position: { x: 200 + Math.random() * 300, y: 200 + Math.random() * 200 },
+      position: randomPosition(200, 200, 300, 200),
       data: {
         label,
         color: colors[type as keyof typeof colors] || '#00d4aa',

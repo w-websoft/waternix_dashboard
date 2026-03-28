@@ -1,28 +1,44 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState, useEffect, useRef } from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import { QRCodeSVG } from 'qrcode.react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { mockEquipment, mockFilters, mockMaintenanceRecords, mockAlerts } from '@/lib/mock-data';
 import { STATUS_CONFIG, EQUIPMENT_TYPE_CONFIG, FILTER_STATUS_CONFIG, formatRelativeTime, formatDate, cn } from '@/lib/utils';
 import {
-  ArrowLeft, MapPin, Wifi, WifiOff, Activity, Droplets, Thermometer,
+  ArrowLeft, MapPin, Wifi, Activity, Droplets, Thermometer,
   Gauge, Zap, Clock, Filter, Wrench, AlertTriangle, LayoutDashboard,
-  ExternalLink, Calendar, ChevronRight
+  ExternalLink, Calendar, ChevronRight, Bell, QrCode, Printer,
+  Package, Plus, RefreshCw, Info, Shield, Radio,
 } from 'lucide-react';
 import {
   LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer
 } from 'recharts';
+import AddConsumableModal from '@/components/equipment/AddConsumableModal';
+import { SensorData } from '@/types';
 
-const HISTORY_DATA = Array.from({ length: 24 }, (_, i) => ({
-  time: `${String(i).padStart(2, '0')}:00`,
-  flowRate: 5.5 + Math.random() * 2.5,
-  outletTds: 8 + Math.random() * 8,
-  pressure: 3.5 + Math.random() * 1.2,
-  power: 0.45 + Math.random() * 0.2,
-}));
+function buildHistoryData() {
+  return Array.from({ length: 24 }, (_, i) => ({
+    time: `${String(i).padStart(2, '0')}:00`,
+    flowRate: parseFloat((5.5 + Math.random() * 2.5).toFixed(2)),
+    outletTds: parseFloat((8 + Math.random() * 8).toFixed(1)),
+    pressure: parseFloat((3.5 + Math.random() * 1.2).toFixed(2)),
+    power: parseFloat((0.45 + Math.random() * 0.2).toFixed(3)),
+  }));
+}
+
+type Tab = 'overview' | 'consumables' | 'maintenance' | 'alerts' | 'spec';
+
+const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
+  { id: 'overview', label: '실시간 현황', icon: <Activity className="w-4 h-4" /> },
+  { id: 'consumables', label: '소모품·필터', icon: <Filter className="w-4 h-4" /> },
+  { id: 'maintenance', label: '유지보수', icon: <Wrench className="w-4 h-4" /> },
+  { id: 'alerts', label: '알림', icon: <Bell className="w-4 h-4" /> },
+  { id: 'spec', label: '장비 사양', icon: <Info className="w-4 h-4" /> },
+];
 
 export default function EquipmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -31,10 +47,46 @@ export default function EquipmentDetailPage({ params }: { params: Promise<{ id: 
 
   const statusConf = STATUS_CONFIG[equipment.status];
   const typeConf = EQUIPMENT_TYPE_CONFIG[equipment.equipmentType];
-  const sensor = equipment.sensorData;
+  const initialSensor = equipment.sensorData;
   const filters = mockFilters.filter(f => f.equipmentId === id);
   const maintenances = mockMaintenanceRecords.filter(m => m.equipmentId === id);
-  const alerts = mockAlerts.filter(a => a.equipmentId === id && !a.acknowledged);
+  const equipmentAlerts = mockAlerts.filter(a => a.equipmentId === id && !a.acknowledged);
+
+  const [activeTab, setActiveTab] = useState<Tab>('overview');
+  const [showQr, setShowQr] = useState(false);
+  const [showConsumableModal, setShowConsumableModal] = useState(false);
+  const [liveData, setLiveData] = useState<SensorData | undefined>(initialSensor);
+  const [historyData] = useState(buildHistoryData);
+  const [isLive, setIsLive] = useState(true);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (!isLive || !initialSensor) return;
+    intervalRef.current = setInterval(() => {
+      setLiveData(prev => {
+        if (!prev) return prev;
+        const jitter = (v: number, spread: number) => parseFloat((v + (Math.random() - 0.5) * spread).toFixed(2));
+        return {
+          ...prev,
+          flowRate: jitter(prev.flowRate || 6, 0.4),
+          outletTds: jitter(prev.outletTds || 10, 1),
+          inletPressure: jitter(prev.inletPressure || 4, 0.2),
+          temperature: jitter(prev.temperature || 20, 0.3),
+          powerKw: jitter(prev.powerKw || 0.5, 0.05),
+          timestamp: new Date().toISOString(),
+        };
+      });
+    }, 3000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [isLive, initialSensor]);
+
+  const equipmentUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/equipment/${id}`
+    : `https://waternix.dashboard/equipment/${id}`;
+
+  const handlePrintQr = () => {
+    window.print();
+  };
 
   return (
     <DashboardLayout
@@ -64,7 +116,7 @@ export default function EquipmentDetailPage({ params }: { params: Promise<{ id: 
               <div className="flex items-center gap-3 flex-wrap">
                 <h2 className="text-xl font-bold">{equipment.name || equipment.model}</h2>
                 <span className={cn('inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full', statusConf.bg, statusConf.color)}>
-                  <span className={cn('w-1.5 h-1.5 rounded-full', statusConf.dot)} />
+                  <span className={cn('w-1.5 h-1.5 rounded-full animate-pulse', statusConf.dot)} />
                   {statusConf.label}
                 </span>
               </div>
@@ -72,40 +124,88 @@ export default function EquipmentDetailPage({ params }: { params: Promise<{ id: 
               <div className="flex items-center gap-4 mt-2 text-xs text-slate-400 flex-wrap">
                 <span className="flex items-center gap-1"><Wifi className="w-3.5 h-3.5 text-emerald-400" />{equipment.commType?.toUpperCase()}</span>
                 <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-blue-400" />{equipment.city} {equipment.district}</span>
-                <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-slate-400" />최근 수신: {formatRelativeTime(equipment.lastSeen)}</span>
+                <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-slate-400" />최근 수신: {formatRelativeTime(liveData?.timestamp)}</span>
                 <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-slate-400" />설치: {formatDate(equipment.installDate)}</span>
+                <span className="flex items-center gap-1">
+                  <Radio className={cn('w-3.5 h-3.5', isLive ? 'text-teal-400 animate-pulse' : 'text-slate-500')} />
+                  {isLive ? '실시간 연결' : '일시 정지'}
+                </span>
               </div>
             </div>
           </div>
-          {/* Layout Button */}
-          <Link
-            href={`/equipment/${id}/layout-editor`}
-            className="flex items-center gap-2 px-5 py-2.5 bg-teal-500 hover:bg-teal-400 text-white text-sm font-semibold rounded-xl transition-all shadow-lg shadow-teal-500/30 hover:shadow-teal-400/40"
-          >
-            <LayoutDashboard className="w-4 h-4" />
-            시설 배치도 편집
-            <ExternalLink className="w-3.5 h-3.5 opacity-70" />
-          </Link>
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {equipmentAlerts.length > 0 && (
+              <Link href="/alerts" className="relative flex items-center gap-2 px-4 py-2.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 text-sm font-semibold rounded-xl transition-all border border-red-500/30">
+                <Bell className="w-4 h-4" />
+                미처리 알림
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+                  {equipmentAlerts.length}
+                </span>
+              </Link>
+            )}
+            <button
+              onClick={() => setIsLive(v => !v)}
+              className={cn('flex items-center gap-2 px-3 py-2.5 text-sm font-semibold rounded-xl transition-all border',
+                isLive ? 'bg-teal-500/20 text-teal-300 border-teal-500/40 hover:bg-teal-500/30' : 'bg-slate-700 text-slate-400 border-slate-600 hover:bg-slate-600'
+              )}
+            >
+              <RefreshCw className={cn('w-4 h-4', isLive && 'animate-spin')} style={{ animationDuration: '3s' }} />
+              {isLive ? '실시간' : '일시정지'}
+            </button>
+            <button
+              onClick={() => setShowQr(v => !v)}
+              className="flex items-center gap-2 px-3 py-2.5 bg-white/10 hover:bg-white/20 text-white text-sm font-semibold rounded-xl transition-all border border-white/10"
+            >
+              <QrCode className="w-4 h-4" /> QR
+            </button>
+            <Link
+              href={`/equipment/${id}/layout-editor`}
+              className="flex items-center gap-2 px-5 py-2.5 bg-teal-500 hover:bg-teal-400 text-white text-sm font-semibold rounded-xl transition-all shadow-lg shadow-teal-500/30"
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              시설 배치도
+              <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+            </Link>
+          </div>
         </div>
 
+        {/* QR Code Panel */}
+        {showQr && (
+          <div className="relative mt-4 flex items-center gap-6 p-4 bg-white/5 rounded-xl border border-white/10">
+            <div className="bg-white p-3 rounded-xl flex-shrink-0">
+              <QRCodeSVG value={equipmentUrl} size={100} />
+            </div>
+            <div className="flex-1">
+              <div className="font-bold text-sm text-white">장비 QR 코드</div>
+              <div className="text-xs text-slate-400 mt-1">스캔 시 장비 상세 페이지로 이동합니다</div>
+              <div className="text-xs text-slate-500 mt-1 font-mono break-all">{equipmentUrl}</div>
+              <div className="text-xs text-teal-300 mt-2 font-mono">S/N: {equipment.serialNo}</div>
+            </div>
+            <button onClick={handlePrintQr} className="flex items-center gap-1.5 px-3 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-medium rounded-lg transition-all flex-shrink-0">
+              <Printer className="w-3.5 h-3.5" /> 인쇄
+            </button>
+          </div>
+        )}
+
         {/* Live Sensor Row */}
-        {sensor && (
-          <div className="relative grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-6 gap-3 mt-5">
+        {liveData && (
+          <div className="relative grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 mt-5">
             {[
-              { label: '유량', value: sensor.flowRate?.toFixed(1), unit: 'L/min', icon: Droplets, color: 'text-cyan-400', warn: false },
-              { label: '일일 생산량', value: sensor.dailyVolume?.toLocaleString('ko-KR'), unit: 'L', icon: Activity, color: 'text-blue-400', warn: false },
-              { label: '정수 TDS', value: sensor.outletTds, unit: 'ppm', icon: Gauge, color: (sensor.outletTds || 0) > 20 ? 'text-red-400' : 'text-emerald-400', warn: (sensor.outletTds || 0) > 20 },
-              { label: '입구 압력', value: sensor.inletPressure?.toFixed(1), unit: 'bar', icon: Gauge, color: 'text-purple-400', warn: false },
-              { label: '수온', value: sensor.temperature?.toFixed(1), unit: '°C', icon: Thermometer, color: 'text-orange-400', warn: false },
-              { label: '소비 전력', value: sensor.powerKw?.toFixed(2), unit: 'kW', icon: Zap, color: 'text-yellow-400', warn: false },
+              { label: '유량', value: liveData.flowRate?.toFixed(1), unit: 'L/min', icon: Droplets, color: 'text-cyan-400', warn: false },
+              { label: '일일 생산량', value: liveData.dailyVolume?.toLocaleString('ko-KR'), unit: 'L', icon: Activity, color: 'text-blue-400', warn: false },
+              { label: '정수 TDS', value: liveData.outletTds, unit: 'ppm', icon: Gauge, color: (liveData.outletTds || 0) > 20 ? 'text-red-400' : 'text-emerald-400', warn: (liveData.outletTds || 0) > 20 },
+              { label: '입구 압력', value: liveData.inletPressure?.toFixed(1), unit: 'bar', icon: Gauge, color: 'text-purple-400', warn: false },
+              { label: '수온', value: liveData.temperature?.toFixed(1), unit: '°C', icon: Thermometer, color: 'text-orange-400', warn: false },
+              { label: '소비 전력', value: liveData.powerKw?.toFixed(2), unit: 'kW', icon: Zap, color: 'text-yellow-400', warn: false },
             ].map(item => (
-              <div key={item.label} className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/10">
+              <div key={item.label} className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/10 transition-all">
                 <div className="flex items-center gap-1.5 mb-1">
                   <item.icon className={cn('w-3.5 h-3.5', item.color)} />
                   <span className="text-xs text-slate-400">{item.label}</span>
                   {item.warn && <AlertTriangle className="w-3 h-3 text-red-400 ml-auto" />}
                 </div>
-                <div className={cn('text-xl font-bold', item.color)}>{item.value ?? '-'}</div>
+                <div className={cn('text-xl font-bold tabular-nums', item.color)}>{item.value ?? '-'}</div>
                 <div className="text-xs text-slate-500">{item.unit}</div>
               </div>
             ))}
@@ -113,138 +213,354 @@ export default function EquipmentDetailPage({ params }: { params: Promise<{ id: 
         )}
       </div>
 
-      <div className="grid grid-cols-12 gap-4">
-        {/* Flow Rate Chart */}
-        <div className="col-span-12 lg:col-span-8 bg-white rounded-xl border border-slate-200 p-5">
-          <h3 className="font-semibold text-slate-800 mb-1">24시간 유량 추이</h3>
-          <p className="text-xs text-slate-400 mb-4">오늘 시간대별 유량 (L/min)</p>
-          <div className="h-52">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={HISTORY_DATA}>
-                <defs>
-                  <linearGradient id="flowGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} interval={3} />
-                <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px', border: '1px solid #e2e8f0' }} />
-                <Area type="monotone" dataKey="flowRate" name="유량(L/min)" stroke="#06b6d4" strokeWidth={2} fill="url(#flowGrad)" dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
+      {/* Tabs */}
+      <div className="flex gap-1 mb-4 bg-slate-100 p-1 rounded-xl w-fit flex-wrap">
+        {TABS.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all',
+              activeTab === tab.id ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            )}
+          >
+            {tab.icon}
+            {tab.label}
+            {tab.id === 'alerts' && equipmentAlerts.length > 0 && (
+              <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full font-bold">{equipmentAlerts.length}</span>
+            )}
+            {tab.id === 'consumables' && filters.filter(f => f.status === 'replace').length > 0 && (
+              <span className="bg-amber-500 text-white text-xs px-1.5 py-0.5 rounded-full font-bold">!</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'overview' && (
+        <div className="grid grid-cols-12 gap-4">
+          <div className="col-span-12 lg:col-span-8 bg-white rounded-xl border border-slate-200 p-5">
+            <h3 className="font-semibold text-slate-800 mb-1">24시간 유량 추이</h3>
+            <p className="text-xs text-slate-400 mb-4">오늘 시간대별 유량 (L/min)</p>
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={historyData}>
+                  <defs>
+                    <linearGradient id="flowGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} interval={3} />
+                  <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px', border: '1px solid #e2e8f0' }} />
+                  <Area type="monotone" dataKey="flowRate" name="유량(L/min)" stroke="#06b6d4" strokeWidth={2} fill="url(#flowGrad)" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="col-span-12 lg:col-span-4 bg-white rounded-xl border border-slate-200 p-5">
+            <h3 className="font-semibold text-slate-800 mb-1">TDS 추이</h3>
+            <p className="text-xs text-slate-400 mb-4">정수 TDS (ppm) - 기준 20ppm</p>
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={historyData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} interval={5} />
+                  <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
+                  <Line type="monotone" dataKey="outletTds" name="TDS(ppm)" stroke="#10b981" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="col-span-12 lg:col-span-6 bg-white rounded-xl border border-slate-200 p-5">
+            <h3 className="font-semibold text-slate-800 mb-1">압력 추이</h3>
+            <p className="text-xs text-slate-400 mb-4">입구 압력 (bar)</p>
+            <div className="h-44">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={historyData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} interval={5} />
+                  <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} domain={[3, 6]} />
+                  <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
+                  <Line type="monotone" dataKey="pressure" name="압력(bar)" stroke="#8b5cf6" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="col-span-12 lg:col-span-6 bg-white rounded-xl border border-slate-200 p-5">
+            <h3 className="font-semibold text-slate-800 mb-1">전력 소비</h3>
+            <p className="text-xs text-slate-400 mb-4">소비 전력 (kW)</p>
+            <div className="h-44">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={historyData}>
+                  <defs>
+                    <linearGradient id="powerGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} interval={5} />
+                  <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
+                  <Area type="monotone" dataKey="power" name="전력(kW)" stroke="#f59e0b" strokeWidth={2} fill="url(#powerGrad)" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
+      )}
 
-        {/* TDS + Pressure */}
-        <div className="col-span-12 lg:col-span-4 bg-white rounded-xl border border-slate-200 p-5">
-          <h3 className="font-semibold text-slate-800 mb-1">TDS 추이</h3>
-          <p className="text-xs text-slate-400 mb-4">정수 TDS (ppm) - 기준 20ppm</p>
-          <div className="h-52">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={HISTORY_DATA}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} interval={5} />
-                <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
-                <Line type="monotone" dataKey="outletTds" name="TDS(ppm)" stroke="#10b981" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
+      {activeTab === 'consumables' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-slate-800">필터 및 소모품 현황</h3>
+              <p className="text-xs text-slate-400 mt-0.5">{filters.length}개 소모품 등록됨</p>
+            </div>
+            <button
+              onClick={() => setShowConsumableModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" /> 소모품 등록
+            </button>
           </div>
-        </div>
 
-        {/* Filters */}
-        <div className="col-span-12 lg:col-span-6 bg-white rounded-xl border border-slate-200 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-slate-800">필터 현황</h3>
-            <Filter className="w-4 h-4 text-slate-400" />
-          </div>
           {filters.length === 0 ? (
-            <div className="text-center py-8 text-slate-400 text-sm">등록된 필터 없음</div>
+            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+              <Package className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-500 font-medium">등록된 소모품이 없습니다</p>
+              <p className="text-xs text-slate-400 mt-1">소모품 등록 버튼을 눌러 필터를 추가하세요</p>
+            </div>
           ) : (
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {filters.map(f => {
                 const pct = f.usedPercent || 0;
                 const barColor = pct >= 95 ? 'bg-red-500' : pct >= 80 ? 'bg-amber-400' : 'bg-emerald-500';
                 const fc = FILTER_STATUS_CONFIG[f.status];
                 return (
-                  <div key={f.id}>
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-slate-700">{f.stage}단계 · {f.filterName}</span>
-                        <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium', fc.bg, fc.color)}>{fc.label}</span>
+                  <div key={f.id} className="bg-white rounded-xl border border-slate-200 p-5">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono font-bold">
+                            {f.stage}단계
+                          </span>
+                          <span className={cn('text-xs px-2 py-0.5 rounded font-semibold', fc.bg, fc.color)}>
+                            {fc.label}
+                          </span>
+                        </div>
+                        <div className="font-semibold text-slate-800 mt-1.5">{f.filterName}</div>
+                        <div className="text-xs text-slate-400 mt-0.5">파트번호: {f.partNo || '-'} · {f.supplier}</div>
                       </div>
-                      <span className={cn('text-sm font-bold', pct >= 95 ? 'text-red-600' : pct >= 80 ? 'text-amber-600' : 'text-emerald-600')}>
-                        {pct.toFixed(1)}%
+                      <span className={cn('text-2xl font-bold tabular-nums', pct >= 95 ? 'text-red-600' : pct >= 80 ? 'text-amber-600' : 'text-emerald-600')}>
+                        {pct.toFixed(0)}%
                       </span>
                     </div>
-                    <div className="w-full bg-slate-100 rounded-full h-2">
-                      <div className={cn('h-2 rounded-full transition-all', barColor)} style={{ width: `${Math.min(pct, 100)}%` }} />
+                    <div className="w-full bg-slate-100 rounded-full h-2.5 mb-3">
+                      <div className={cn('h-2.5 rounded-full transition-all', barColor)} style={{ width: `${Math.min(pct, 100)}%` }} />
                     </div>
-                    <div className="text-xs text-slate-400 mt-0.5">교체예정: {f.replaceDate} · {f.supplier}</div>
+                    <div className="grid grid-cols-2 gap-2 text-xs text-slate-500">
+                      <div><span className="text-slate-400">설치일</span> · {formatDate(f.installDate)}</div>
+                      <div><span className="text-slate-400">교체예정</span> · {formatDate(f.replaceDate)}</div>
+                      {f.usedHours && <div><span className="text-slate-400">사용</span> · {f.usedHours.toLocaleString()}h / {f.lifeHours?.toLocaleString()}h</div>}
+                      {f.cost && <div><span className="text-slate-400">단가</span> · {f.cost.toLocaleString('ko-KR')}원</div>}
+                    </div>
+                    {pct >= 80 && (
+                      <div className={cn('mt-3 flex items-center gap-2 p-2 rounded-lg text-xs font-medium',
+                        pct >= 95 ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-700'
+                      )}>
+                        <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                        {pct >= 95 ? '즉시 교체 필요' : '교체 시기가 다가오고 있습니다'}
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
           )}
         </div>
+      )}
 
-        {/* Maintenance */}
-        <div className="col-span-12 lg:col-span-6 bg-white rounded-xl border border-slate-200 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-slate-800">유지보수 이력</h3>
-            <Wrench className="w-4 h-4 text-slate-400" />
+      {activeTab === 'maintenance' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-slate-800">유지보수 이력</h3>
+              <p className="text-xs text-slate-400 mt-0.5">{maintenances.length}건 이력</p>
+            </div>
+            <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+              <Plus className="w-4 h-4" /> 작업 등록
+            </button>
           </div>
           {maintenances.length === 0 ? (
-            <div className="text-center py-8 text-slate-400 text-sm">유지보수 이력 없음</div>
+            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+              <Wrench className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-500">유지보수 이력이 없습니다</p>
+            </div>
           ) : (
-            <div className="space-y-2">
-              {maintenances.map(m => (
-                <div key={m.id} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
-                  <div className={cn('w-2 h-2 rounded-full mt-1.5 flex-shrink-0',
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              {maintenances.map((m, i) => (
+                <div key={m.id} className={cn('flex items-start gap-4 p-4', i > 0 && 'border-t border-slate-100')}>
+                  <div className={cn('w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0',
                     m.status === 'completed' ? 'bg-emerald-500' :
-                    m.status === 'in_progress' ? 'bg-blue-500' : 'bg-amber-500'
+                    m.status === 'in_progress' ? 'bg-blue-500 animate-pulse' : 'bg-amber-500'
                   )} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-slate-800 truncate">{m.title}</div>
-                    <div className="text-xs text-slate-400 mt-0.5">
-                      {m.technician} · {m.completedDate || m.scheduledDate}
-                      {m.cost && ` · ${m.cost.toLocaleString('ko-KR')}원`}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-slate-800 text-sm">{m.title}</span>
+                      <span className={cn('text-xs px-2 py-0.5 rounded font-medium',
+                        m.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                        m.status === 'in_progress' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                      )}>
+                        {m.status === 'completed' ? '완료' : m.status === 'in_progress' ? '진행중' : '예정'}
+                      </span>
                     </div>
+                    <div className="text-xs text-slate-400 mt-1">
+                      담당: {m.technician} · {m.completedDate || m.scheduledDate}
+                      {m.cost && <span> · <strong>{m.cost.toLocaleString('ko-KR')}원</strong></span>}
+                    </div>
+                    {m.description && <p className="text-xs text-slate-500 mt-1">{m.description}</p>}
                   </div>
                 </div>
               ))}
             </div>
           )}
         </div>
+      )}
 
-        {/* Device Info */}
-        <div className="col-span-12 bg-white rounded-xl border border-slate-200 p-5">
-          <h3 className="font-semibold text-slate-800 mb-4">장비 정보</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 text-sm">
-            {[
-              { label: '모델', value: equipment.model },
-              { label: '시리얼번호', value: equipment.serialNo },
-              { label: '장비유형', value: typeConf.label },
-              { label: '처리용량', value: equipment.capacityLph ? `${equipment.capacityLph} L/h` : '-' },
-              { label: '통신방식', value: equipment.commType?.replace('_', ' ').toUpperCase() || '-' },
-              { label: '설치일', value: formatDate(equipment.installDate) },
-              { label: '보증만료', value: formatDate(equipment.warrantyEnd) },
-              { label: '업체명', value: equipment.companyName || '-' },
-              { label: '설치주소', value: equipment.address || '-' },
-              { label: '시/도', value: equipment.city || '-' },
-              { label: '구/군', value: equipment.district || '-' },
-              { label: '누적가동', value: sensor?.runningHours ? `${sensor.runningHours.toFixed(0)}h` : '-' },
-            ].map(item => (
-              <div key={item.label}>
-                <div className="text-xs text-slate-400">{item.label}</div>
-                <div className="font-medium text-slate-800 mt-0.5 truncate" title={item.value || '-'}>{item.value || '-'}</div>
+      {activeTab === 'alerts' && (
+        <div className="space-y-3">
+          {equipmentAlerts.length === 0 ? (
+            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+              <Shield className="w-10 h-10 text-emerald-400 mx-auto mb-3" />
+              <p className="font-semibold text-slate-700">정상 운영 중</p>
+              <p className="text-xs text-slate-400 mt-1">현재 미처리 알림이 없습니다</p>
+            </div>
+          ) : (
+            equipmentAlerts.map(a => (
+              <div key={a.id} className={cn('bg-white rounded-xl border p-4',
+                a.severity === 'critical' ? 'border-red-200' : a.severity === 'warning' ? 'border-amber-200' : 'border-blue-200'
+              )}>
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className={cn('w-4 h-4 mt-0.5 flex-shrink-0',
+                    a.severity === 'critical' ? 'text-red-500' : a.severity === 'warning' ? 'text-amber-500' : 'text-blue-500'
+                  )} />
+                  <div className="flex-1">
+                    <div className="font-semibold text-slate-800 text-sm">{a.title}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">{a.message}</div>
+                    <div className="text-xs text-slate-400 mt-1">{formatRelativeTime(a.createdAt)}</div>
+                  </div>
+                </div>
               </div>
-            ))}
+            ))
+          )}
+        </div>
+      )}
+
+      {activeTab === 'spec' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <h3 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+              <Info className="w-4 h-4 text-blue-500" /> 기본 정보
+            </h3>
+            <dl className="space-y-2.5">
+              {[
+                { dt: '모델명', dd: equipment.model },
+                { dt: '시리얼번호', dd: equipment.serialNo },
+                { dt: '장비 별칭', dd: equipment.name || '-' },
+                { dt: '장비 유형', dd: typeConf.label },
+                { dt: '처리 용량', dd: equipment.capacityLph ? `${equipment.capacityLph.toLocaleString()} L/h` : '-' },
+                { dt: '현재 상태', dd: statusConf.label },
+              ].map(({ dt, dd }) => (
+                <div key={dt} className="flex items-center gap-4 py-1.5 border-b border-slate-50 last:border-0">
+                  <dt className="text-xs text-slate-400 w-28 flex-shrink-0">{dt}</dt>
+                  <dd className="text-sm font-medium text-slate-800">{dd}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <h3 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-emerald-500" /> 설치 위치
+            </h3>
+            <dl className="space-y-2.5">
+              {[
+                { dt: '업체명', dd: equipment.companyName || '-' },
+                { dt: '주소', dd: equipment.address || '-' },
+                { dt: '시/도', dd: equipment.city || '-' },
+                { dt: '구/군', dd: equipment.district || '-' },
+                { dt: '위도', dd: equipment.lat?.toString() || '-' },
+                { dt: '경도', dd: equipment.lng?.toString() || '-' },
+              ].map(({ dt, dd }) => (
+                <div key={dt} className="flex items-center gap-4 py-1.5 border-b border-slate-50 last:border-0">
+                  <dt className="text-xs text-slate-400 w-28 flex-shrink-0">{dt}</dt>
+                  <dd className="text-sm font-medium text-slate-800">{dd}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <h3 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+              <Wifi className="w-4 h-4 text-purple-500" /> 통신 설정
+            </h3>
+            <dl className="space-y-2.5">
+              {[
+                { dt: '통신 방식', dd: equipment.commType?.replace('_', ' ').toUpperCase() || '-' },
+                { dt: '최근 수신', dd: formatDate(liveData?.timestamp) },
+                { dt: '누적 가동', dd: liveData?.runningHours ? `${liveData.runningHours.toLocaleString()}시간` : '-' },
+                ...Object.entries(equipment.commConfig || {}).map(([k, v]) => ({ dt: k, dd: String(v) })),
+              ].map(({ dt, dd }) => (
+                <div key={dt} className="flex items-center gap-4 py-1.5 border-b border-slate-50 last:border-0">
+                  <dt className="text-xs text-slate-400 w-28 flex-shrink-0">{dt}</dt>
+                  <dd className="text-sm font-medium text-slate-800 font-mono">{dd}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <h3 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-orange-500" /> 계약 및 보증
+            </h3>
+            <dl className="space-y-2.5">
+              {[
+                { dt: '설치일', dd: formatDate(equipment.installDate) },
+                { dt: '보증 만료', dd: formatDate(equipment.warrantyEnd) },
+                { dt: '보증 상태', dd: (() => {
+                  if (!equipment.warrantyEnd) return '-';
+                  const d = new Date(equipment.warrantyEnd);
+                  const now = new Date();
+                  const diff = Math.floor((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                  if (diff < 0) return '만료됨';
+                  if (diff < 90) return `D-${diff} (곧 만료)`;
+                  return `유효 (D-${diff})`;
+                })() },
+              ].map(({ dt, dd }) => (
+                <div key={dt} className="flex items-center gap-4 py-1.5 border-b border-slate-50 last:border-0">
+                  <dt className="text-xs text-slate-400 w-28 flex-shrink-0">{dt}</dt>
+                  <dd className="text-sm font-medium text-slate-800">{dd}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
         </div>
-      </div>
+      )}
+
+      <AddConsumableModal
+        open={showConsumableModal}
+        equipmentId={id}
+        equipmentName={equipment.name || equipment.model}
+        onClose={() => setShowConsumableModal(false)}
+      />
     </DashboardLayout>
   );
 }
