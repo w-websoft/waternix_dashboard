@@ -1,0 +1,102 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: timescale/timescaledb:latest-pg15
+    container_name: waternix_postgres
+    environment:
+      POSTGRES_DB: waternix_db
+      POSTGRES_USER: waternix
+      POSTGRES_PASSWORD: Waternix2026!#
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - waternix_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U waternix -d waternix_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - waternix_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: waternix_redis
+    ports:
+      - "127.0.0.1:6382:6379"
+    volumes:
+      - waternix_redis_data:/data
+    command: redis-server --appendonly yes --requirepass Waternix2026
+    restart: unless-stopped
+    networks:
+      - waternix_net
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: waternix_mqtt
+    ports:
+      - "127.0.0.1:1883:1883"
+      - "127.0.0.1:9002:9001"
+    volumes:
+      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - waternix_mqtt_data:/mosquitto/data
+      - waternix_mqtt_log:/mosquitto/log
+    restart: unless-stopped
+    networks:
+      - waternix_net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: waternix_backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://waternix:Waternix2026!#@postgres:5432/waternix_db
+      REDIS_URL: redis://:Waternix2026@redis:6379/0
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      DEBUG: "false"
+      SECRET_KEY: waternix-secret-key-2026-production
+      CORS_ORIGINS: '["http://112.162.17.116","https://gwaternix.w-websoftsrv.kr","http://localhost:3010"]'
+    ports:
+      - "127.0.0.1:8010:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - waternix_net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://112.162.17.116:8010
+        NEXT_PUBLIC_SOCKET_URL: http://112.162.17.116:8010
+    container_name: waternix_frontend
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    ports:
+      - "0.0.0.0:3010:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - waternix_net
+
+volumes:
+  waternix_postgres_data:
+  waternix_redis_data:
+  waternix_mqtt_data:
+  waternix_mqtt_log:
+
+networks:
+  waternix_net:
+    name: waternix_net
