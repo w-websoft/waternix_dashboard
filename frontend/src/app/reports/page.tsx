@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { mockCompanies, mockEquipment, mockMaintenanceRecords, mockFilters } from '@/lib/mock-data';
 import { STATUS_CONFIG, EQUIPMENT_TYPE_CONFIG, cn } from '@/lib/utils';
@@ -59,8 +59,11 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function ReportsPage() {
+  const [mounted, setMounted] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<string>('all');
   const [reportPeriod, setReportPeriod] = useState<'1m' | '3m' | '6m' | '1y'>('6m');
+
+  useEffect(() => { setMounted(true); }, []);
 
   const report = useMemo(() => buildCompanyReport(selectedCompany), [selectedCompany]);
   const selectedCompanyInfo = selectedCompany === 'all' ? null : mockCompanies.find(c => c.id === selectedCompany);
@@ -162,7 +165,14 @@ export default function ReportsPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-12 gap-5">
+      {!mounted && (
+        <div className="grid grid-cols-12 gap-5">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className={`${i < 2 ? 'col-span-12 lg:col-span-6' : 'col-span-12'} h-72 bg-white rounded-xl border border-slate-200 animate-pulse`} />
+          ))}
+        </div>
+      )}
+      {mounted && <div className="grid grid-cols-12 gap-5">
         {/* 월별 정수량 */}
         <div className="col-span-12 lg:col-span-8 bg-white rounded-xl border border-slate-200 p-5">
           <h3 className="font-semibold text-slate-800 mb-1">월별 정수 생산량 및 유지보수</h3>
@@ -328,7 +338,7 @@ export default function ReportsPage() {
             </div>
           </div>
         )}
-      </div>
+      </div>}
     </DashboardLayout>
   );
 }

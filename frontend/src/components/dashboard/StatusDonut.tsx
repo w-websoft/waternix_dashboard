@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { DashboardSummary } from '@/types';
 
@@ -16,11 +17,18 @@ const STATUS_DATA_CONFIG = [
 ];
 
 export default function StatusDonut({ summary }: StatusDonutProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   const data = STATUS_DATA_CONFIG.map(c => ({
     name: c.label,
     value: summary[c.key as keyof DashboardSummary] as number,
     color: c.color,
   })).filter(d => d.value > 0);
+
+  if (!mounted) {
+    return <div className="h-48 bg-slate-50 rounded-lg animate-pulse" />;
+  }
 
   return (
     <div className="h-48">

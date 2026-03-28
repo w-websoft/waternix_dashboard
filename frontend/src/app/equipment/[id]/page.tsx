@@ -20,13 +20,24 @@ import {
 import AddConsumableModal from '@/components/equipment/AddConsumableModal';
 import { SensorData } from '@/types';
 
+const HISTORY_BASE = [
+  [6.1,10.2,3.8,0.52], [5.8,9.5,3.6,0.49], [6.3,11.0,4.0,0.55],
+  [5.5,8.8,3.5,0.47], [6.8,12.1,4.2,0.58], [6.0,9.9,3.7,0.51],
+  [7.1,13.0,4.4,0.61], [5.7,9.1,3.6,0.48], [6.4,10.5,3.9,0.53],
+  [6.2,10.8,3.8,0.52], [5.9,9.3,3.7,0.50], [6.6,11.5,4.1,0.57],
+  [6.0,10.0,3.8,0.51], [6.9,12.5,4.3,0.60], [5.6,8.9,3.5,0.48],
+  [6.7,11.8,4.2,0.58], [6.1,10.3,3.8,0.52], [6.5,11.2,4.0,0.56],
+  [5.8,9.6,3.6,0.49], [7.0,12.8,4.4,0.61], [6.3,10.7,3.9,0.54],
+  [6.2,10.4,3.8,0.53], [5.9,9.8,3.7,0.50], [6.4,10.9,4.0,0.54],
+];
+
 function buildHistoryData() {
-  return Array.from({ length: 24 }, (_, i) => ({
+  return HISTORY_BASE.map(([f, t, p, pw], i) => ({
     time: `${String(i).padStart(2, '0')}:00`,
-    flowRate: parseFloat((5.5 + Math.random() * 2.5).toFixed(2)),
-    outletTds: parseFloat((8 + Math.random() * 8).toFixed(1)),
-    pressure: parseFloat((3.5 + Math.random() * 1.2).toFixed(2)),
-    power: parseFloat((0.45 + Math.random() * 0.2).toFixed(3)),
+    flowRate: f,
+    outletTds: t,
+    pressure: p,
+    power: pw,
   }));
 }
 
@@ -52,6 +63,7 @@ export default function EquipmentDetailPage({ params }: { params: Promise<{ id: 
   const maintenances = mockMaintenanceRecords.filter(m => m.equipmentId === id);
   const equipmentAlerts = mockAlerts.filter(a => a.equipmentId === id && !a.acknowledged);
 
+  const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [showQr, setShowQr] = useState(false);
   const [showConsumableModal, setShowConsumableModal] = useState(false);
@@ -59,6 +71,8 @@ export default function EquipmentDetailPage({ params }: { params: Promise<{ id: 
   const [historyData] = useState(buildHistoryData);
   const [isLive, setIsLive] = useState(true);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     if (!isLive || !initialSensor) return;
@@ -239,7 +253,13 @@ export default function EquipmentDetailPage({ params }: { params: Promise<{ id: 
       {/* Tab Content */}
       {activeTab === 'overview' && (
         <div className="grid grid-cols-12 gap-4">
-          <div className="col-span-12 lg:col-span-8 bg-white rounded-xl border border-slate-200 p-5">
+          {!mounted && (
+            <>
+              <div className="col-span-12 lg:col-span-8 h-72 bg-white rounded-xl border border-slate-200 animate-pulse" />
+              <div className="col-span-12 lg:col-span-4 h-72 bg-white rounded-xl border border-slate-200 animate-pulse" />
+            </>
+          )}
+          {mounted && <div className="col-span-12 lg:col-span-8 bg-white rounded-xl border border-slate-200 p-5">
             <h3 className="font-semibold text-slate-800 mb-1">24시간 유량 추이</h3>
             <p className="text-xs text-slate-400 mb-4">오늘 시간대별 유량 (L/min)</p>
             <div className="h-52">
@@ -259,9 +279,9 @@ export default function EquipmentDetailPage({ params }: { params: Promise<{ id: 
                 </AreaChart>
               </ResponsiveContainer>
             </div>
-          </div>
+          </div>}
 
-          <div className="col-span-12 lg:col-span-4 bg-white rounded-xl border border-slate-200 p-5">
+          {mounted && <div className="col-span-12 lg:col-span-4 bg-white rounded-xl border border-slate-200 p-5">
             <h3 className="font-semibold text-slate-800 mb-1">TDS 추이</h3>
             <p className="text-xs text-slate-400 mb-4">정수 TDS (ppm) - 기준 20ppm</p>
             <div className="h-52">
@@ -275,9 +295,9 @@ export default function EquipmentDetailPage({ params }: { params: Promise<{ id: 
                 </LineChart>
               </ResponsiveContainer>
             </div>
-          </div>
+          </div>}
 
-          <div className="col-span-12 lg:col-span-6 bg-white rounded-xl border border-slate-200 p-5">
+          {mounted && <div className="col-span-12 lg:col-span-6 bg-white rounded-xl border border-slate-200 p-5">
             <h3 className="font-semibold text-slate-800 mb-1">압력 추이</h3>
             <p className="text-xs text-slate-400 mb-4">입구 압력 (bar)</p>
             <div className="h-44">
@@ -291,9 +311,9 @@ export default function EquipmentDetailPage({ params }: { params: Promise<{ id: 
                 </LineChart>
               </ResponsiveContainer>
             </div>
-          </div>
+          </div>}
 
-          <div className="col-span-12 lg:col-span-6 bg-white rounded-xl border border-slate-200 p-5">
+          {mounted && <div className="col-span-12 lg:col-span-6 bg-white rounded-xl border border-slate-200 p-5">
             <h3 className="font-semibold text-slate-800 mb-1">전력 소비</h3>
             <p className="text-xs text-slate-400 mb-4">소비 전력 (kW)</p>
             <div className="h-44">
@@ -313,7 +333,7 @@ export default function EquipmentDetailPage({ params }: { params: Promise<{ id: 
                 </AreaChart>
               </ResponsiveContainer>
             </div>
-          </div>
+          </div>}
         </div>
       )}
 
