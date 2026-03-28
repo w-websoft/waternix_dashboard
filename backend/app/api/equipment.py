@@ -34,12 +34,23 @@ def _row_to_equipment(row) -> dict:
         d["created_at"] = d["created_at"].isoformat()
     if d.get("updated_at"):
         d["updated_at"] = d["updated_at"].isoformat()
-    # comm_config는 JSONB → dict 변환
+    # comm_config JSONB 처리 (있는 경우)
     if d.get("comm_config") and isinstance(d["comm_config"], str):
         try:
             d["comm_config"] = json.loads(d["comm_config"])
         except Exception:
             d["comm_config"] = None
+    # comm_host/comm_port/comm_slave_id → comm_config dict로 통합
+    if not d.get("comm_config"):
+        comm = {}
+        if d.get("comm_host"):
+            comm["host"] = d["comm_host"]
+        if d.get("comm_port"):
+            comm["port"] = d["comm_port"]
+        if d.get("comm_slave_id") is not None:
+            comm["slave_id"] = d["comm_slave_id"]
+        if comm:
+            d["comm_config"] = comm
     return d
 
 
@@ -105,9 +116,14 @@ async def create_equipment(data: EquipmentCreate):
         pool = await get_pool()
         async with pool.acquire() as conn:
             eq_id = str(uuid.uuid4())
-            comm_config_json = None
+            comm_host = None
+            comm_port = None
+            comm_slave_id = None
             if data.comm_config:
-                comm_config_json = json.dumps(data.comm_config.model_dump(exclude_none=True))
+                cfg = data.comm_config.model_dump(exclude_none=True)
+                comm_host = cfg.get("host")
+                comm_port = cfg.get("port")
+                comm_slave_id = cfg.get("slave_id")
 
             row = await conn.fetchrow(
                 """
@@ -115,10 +131,10 @@ async def create_equipment(data: EquipmentCreate):
                     id, company_id, serial_no, model, equipment_type, name,
                     lat, lng, address, city, district,
                     install_date, warranty_end, capacity_lph,
-                    comm_type, comm_config, status
+                    comm_type, comm_host, comm_port, comm_slave_id, status
                 ) VALUES (
                     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-                    $12, $13, $14, $15, $16::jsonb, 'offline'
+                    $12, $13, $14, $15, $16, $17, $18, 'offline'
                 )
                 RETURNING *
                 """,
@@ -137,7 +153,9 @@ async def create_equipment(data: EquipmentCreate):
                 data.warranty_end,
                 data.capacity_lph,
                 data.comm_type.value if data.comm_type else None,
-                comm_config_json,
+                comm_host,
+                comm_port,
+                comm_slave_id,
             )
             result = _row_to_equipment(row)
             # company_name 조회

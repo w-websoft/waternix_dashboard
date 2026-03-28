@@ -14,18 +14,18 @@ INSERT INTO companies (id, name, business_no, contact, phone, email, address, ci
   ('c008', '경기워터테크', '890-12-34567', '임대리', '031-890-1234', 'gwt@gyeonggi.co.kr', '경기도 수원시 영통구 광교로 258', '경기', '수원시', 37.2636, 127.0286, '2023-04-01', '2026-03-31', 'active', NULL)
 ON CONFLICT (id) DO NOTHING;
 
--- 장비 (Equipment)
-INSERT INTO equipment (id, company_id, serial_no, model, equipment_type, name, status, lat, lng, address, city, district, install_date, warranty_end, capacity_lph, comm_type, comm_config, company_name) VALUES
-  ('e001', 'c001', 'WNX-RO-2401', 'WaterNix-RO3000', 'ro', '강남사옥 역삼투압 정수기', 'normal', 37.5084, 127.0621, '서울 강남구 테헤란로 123', '서울', '강남구', '2024-01-15', '2026-01-14', 3000, 'modbus_tcp', '{"host":"192.168.1.101","port":502,"slave_id":1}', '한국수처리(주)'),
-  ('e002', 'c001', 'WNX-UV-2402', 'WaterNix-UV500', 'uv', '강남사옥 UV 살균기', 'normal', 37.5084, 127.0621, '서울 강남구 테헤란로 123', '서울', '강남구', '2024-01-15', '2026-01-14', 500, 'modbus_tcp', '{"host":"192.168.1.102","port":502,"slave_id":2}', '한국수처리(주)'),
-  ('e003', 'c002', 'WNX-RO-2403', 'WaterNix-RO5000', 'ro', '해운대 공장 대형 정수기', 'warning', 35.1631, 129.1320, '부산 해운대구 센텀로 456', '부산', '해운대구', '2023-09-01', '2025-08-31', 5000, 'mqtt', '{"host":"mqtt.waternix.co.kr","port":1883,"topic":"device/e003"}', '청정워터시스템'),
-  ('e004', 'c002', 'WNX-PRE-2404', 'WaterNix-PRE200', 'prefilter', '해운대 전처리 필터', 'normal', 35.1631, 129.1320, '부산 해운대구 센텀로 456', '부산', '해운대구', '2023-09-01', '2025-08-31', 200, 'mqtt', '{"host":"mqtt.waternix.co.kr","port":1883,"topic":"device/e004"}', '청정워터시스템'),
-  ('e005', 'c003', 'WNX-DI-2405', 'WaterNix-DI1000', 'di', '유성 반도체 초순수', 'normal', 36.3741, 127.3558, '대전 유성구 과학로 789', '대전', '유성구', '2024-03-01', '2026-02-28', 1000, 'modbus_rtu', '{"serial_port":"/dev/ttyUSB0","baudrate":9600}', '수성환경산업'),
-  ('e006', 'c004', 'WNX-RO-2406', 'WaterNix-RO2000', 'ro', '광주 공장 정수기', 'error', 35.2196, 126.8479, '광주 북구 첨단과기로 321', '광주', '북구', '2023-11-15', '2025-11-14', 2000, 'mqtt', '{"host":"mqtt.waternix.co.kr","port":1883,"topic":"device/e006"}', '광주정수기술'),
-  ('e007', 'c005', 'WNX-SEA-2407', 'WaterNix-SEA10000', 'seawater', '대구 해수담수화 설비', 'normal', 35.8714, 128.5011, '대구 달성군 테크노대로 654', '대구', '달성군', '2024-06-01', '2026-05-31', 10000, 'modbus_tcp', '{"host":"192.168.2.101","port":502,"slave_id":1}', '대구수처리연구소'),
-  ('e008', 'c006', 'WNX-SOFT-2408', 'WaterNix-SOFT300', 'softener', '인천 연수기', 'maintenance', 37.4037, 126.6953, '인천 연수구 송도과학로 987', '인천', '연수구', '2023-08-01', '2025-07-31', 300, 'mqtt', '{"host":"mqtt.waternix.co.kr","port":1883,"topic":"device/e008"}', '인천워터솔루션'),
-  ('e009', 'c007', 'WNX-SEA-2409', 'WaterNix-SEA20000', 'seawater', '울산 대형 담수화 플랜트', 'normal', 35.5665, 129.3312, '울산 남구 삼산로 147', '울산', '남구', '2023-12-01', '2025-11-30', 20000, 'opcua', '{"endpoint":"opc.tcp://192.168.3.100:4840"}', '울산해수담수화'),
-  ('e010', 'c008', 'WNX-RO-2410', 'WaterNix-RO4000', 'ro', '수원 R&D센터 정수기', 'offline', 37.2636, 127.0286, '경기 수원시 영통구 광교로 258', '경기', '수원시', '2024-02-15', '2026-02-14', 4000, 'modbus_tcp', '{"host":"192.168.4.101","port":502,"slave_id":1}', '경기워터테크')
+-- 장비 (Equipment) - 실제 DB 스키마: comm_host, comm_port, comm_slave_id 별도 컬럼
+INSERT INTO equipment (id, company_id, serial_no, model, equipment_type, name, status, lat, lng, address, city, district, install_date, warranty_end, capacity_lph, comm_type, comm_host, comm_port, comm_slave_id, company_name) VALUES
+  ('e001', 'c001', 'WNX-RO-2401', 'WaterNix-RO3000', 'ro', '강남사옥 역삼투압 정수기', 'normal', 37.5084, 127.0621, '서울 강남구 테헤란로 123', '서울', '강남구', '2024-01-15', '2026-01-14', 3000, 'modbus_tcp', '192.168.1.101', 502, 1, '한국수처리(주)'),
+  ('e002', 'c001', 'WNX-UV-2402', 'WaterNix-UV500', 'uv', '강남사옥 UV 살균기', 'normal', 37.5084, 127.0621, '서울 강남구 테헤란로 123', '서울', '강남구', '2024-01-15', '2026-01-14', 500, 'modbus_tcp', '192.168.1.102', 502, 2, '한국수처리(주)'),
+  ('e003', 'c002', 'WNX-RO-2403', 'WaterNix-RO5000', 'ro', '해운대 공장 대형 정수기', 'warning', 35.1631, 129.1320, '부산 해운대구 센텀로 456', '부산', '해운대구', '2023-09-01', '2025-08-31', 5000, 'mqtt', 'mqtt.waternix.co.kr', 1883, NULL, '청정워터시스템'),
+  ('e004', 'c002', 'WNX-PRE-2404', 'WaterNix-PRE200', 'prefilter', '해운대 전처리 필터', 'normal', 35.1631, 129.1320, '부산 해운대구 센텀로 456', '부산', '해운대구', '2023-09-01', '2025-08-31', 200, 'mqtt', 'mqtt.waternix.co.kr', 1883, NULL, '청정워터시스템'),
+  ('e005', 'c003', 'WNX-DI-2405', 'WaterNix-DI1000', 'di', '유성 반도체 초순수', 'normal', 36.3741, 127.3558, '대전 유성구 과학로 789', '대전', '유성구', '2024-03-01', '2026-02-28', 1000, 'modbus_rtu', NULL, NULL, NULL, '수성환경산업'),
+  ('e006', 'c004', 'WNX-RO-2406', 'WaterNix-RO2000', 'ro', '광주 공장 정수기', 'error', 35.2196, 126.8479, '광주 북구 첨단과기로 321', '광주', '북구', '2023-11-15', '2025-11-14', 2000, 'mqtt', 'mqtt.waternix.co.kr', 1883, NULL, '광주정수기술'),
+  ('e007', 'c005', 'WNX-SEA-2407', 'WaterNix-SEA10000', 'seawater', '대구 해수담수화 설비', 'normal', 35.8714, 128.5011, '대구 달성군 테크노대로 654', '대구', '달성군', '2024-06-01', '2026-05-31', 10000, 'modbus_tcp', '192.168.2.101', 502, 1, '대구수처리연구소'),
+  ('e008', 'c006', 'WNX-SOFT-2408', 'WaterNix-SOFT300', 'softener', '인천 연수기', 'maintenance', 37.4037, 126.6953, '인천 연수구 송도과학로 987', '인천', '연수구', '2023-08-01', '2025-07-31', 300, 'mqtt', 'mqtt.waternix.co.kr', 1883, NULL, '인천워터솔루션'),
+  ('e009', 'c007', 'WNX-SEA-2409', 'WaterNix-SEA20000', 'seawater', '울산 대형 담수화 플랜트', 'normal', 35.5665, 129.3312, '울산 남구 삼산로 147', '울산', '남구', '2023-12-01', '2025-11-30', 20000, 'opcua', '192.168.3.100', 4840, NULL, '울산해수담수화'),
+  ('e010', 'c008', 'WNX-RO-2410', 'WaterNix-RO4000', 'ro', '수원 R&D센터 정수기', 'offline', 37.2636, 127.0286, '경기 수원시 영통구 광교로 258', '경기', '수원시', '2024-02-15', '2026-02-14', 4000, 'modbus_tcp', '192.168.4.101', 502, 1, '경기워터테크')
 ON CONFLICT (id) DO NOTHING;
 
 -- 소모품 (Consumables)
