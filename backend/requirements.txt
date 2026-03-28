@@ -1,0 +1,51 @@
+# FastAPI 및 웹 서버
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+python-multipart==0.0.18
+
+# 데이터 검증
+pydantic==2.10.4
+pydantic-settings==2.7.0
+email-validator==2.2.0
+
+# 데이터베이스
+sqlalchemy==2.0.36
+asyncpg==0.30.0
+alembic==1.14.0
+psycopg2-binary==2.9.10
+
+# Redis
+redis==5.2.1
+
+# 인증/보안
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# 산업용 통신 (핵심)
+pymodbus==3.7.4          # Modbus TCP/RTU (PLC 통신)
+pyserial==3.5            # RS232/RS485 시리얼 통신
+paho-mqtt==2.1.0         # MQTT 브로커 연동
+asyncua==1.1.5           # OPC-UA 프로토콜
+aiohttp==3.11.10         # HTTP 비동기 클라이언트
+
+# 실시간 통신
+python-socketio==5.11.4  # Socket.io 서버
+websockets==14.1
+
+# 백그라운드 태스크
+celery==5.4.0
+celery[redis]==5.4.0
+
+# 유틸리티
+python-dotenv==1.0.1
+httpx==0.28.1
+orjson==3.10.12
+aiofiles==24.1.0
+
+# 알림 발송
+boto3==1.35.87           # AWS SNS (SMS)
+sendgrid==6.11.0         # 이메일
+
+# 데이터 처리
+pandas==2.2.3
+numpy==2.2.1

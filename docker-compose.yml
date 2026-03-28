@@ -1,0 +1,133 @@
+version: '3.9'
+
+services:
+  # ─── 데이터베이스 ─────────────────────────────────────────────────────────────
+  postgres:
+    image: timescale/timescaledb:latest-pg15
+    container_name: waternix_postgres
+    environment:
+      POSTGRES_DB: waternix_db
+      POSTGRES_USER: waternix
+      POSTGRES_PASSWORD: waternix123
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U waternix -d waternix_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ─── Redis 캐시 ────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: waternix_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --requirepass waternix123
+    restart: unless-stopped
+
+  # ─── MQTT 브로커 (Mosquitto) ──────────────────────────────────────────────────
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: waternix_mqtt
+    ports:
+      - "1883:1883"   # MQTT (비암호화)
+      - "8883:8883"   # MQTT over TLS
+      - "9001:9001"   # WebSocket
+    volumes:
+      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+      - ./mosquitto/certs:/mosquitto/certs
+    restart: unless-stopped
+
+  # ─── FastAPI 백엔드 ────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: waternix_backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://waternix:waternix123@postgres:5432/waternix_db
+      REDIS_URL: redis://:waternix123@redis:6379/0
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      DEBUG: "false"
+      SECRET_KEY: ${SECRET_KEY:-change-this-secret-key-in-production}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      mosquitto:
+        condition: service_started
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+    command: uvicorn app.main:socket_app --host 0.0.0.0 --port 8000 --workers 2
+
+  # ─── Celery Worker (배경 태스크) ──────────────────────────────────────────────
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: waternix_celery
+    environment:
+      DATABASE_URL: postgresql+asyncpg://waternix:waternix123@postgres:5432/waternix_db
+      REDIS_URL: redis://:waternix123@redis:6379/0
+      MQTT_HOST: mosquitto
+    depends_on:
+      - backend
+      - redis
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=4
+    restart: unless-stopped
+
+  # ─── Next.js 프론트엔드 ────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://backend:8000
+        NEXT_PUBLIC_SOCKET_URL: http://backend:8000
+    container_name: waternix_frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_SOCKET_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # ─── Nginx 리버스 프록시 ─────────────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: waternix_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/certs:/etc/nginx/certs
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  default:
+    name: waternix_network

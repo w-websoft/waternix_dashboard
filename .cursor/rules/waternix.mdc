@@ -1,0 +1,33 @@
+---
+description: 워터닉스 IoT 프로젝트 코딩 규칙
+alwaysApply: true
+---
+
+# 워터닉스 IoT 프로젝트 규칙
+
+## 프레임워크
+- 프론트엔드: Next.js 16 App Router + TypeScript + Tailwind CSS
+- 백엔드: FastAPI Python 3.11
+- 지도: Leaflet (dynamic import 필수, `ssr: false`)
+- next.config.ts에 반드시 `turbopack: {}` 포함
+
+## 코딩 규칙
+- 모든 타입은 `src/types/index.ts`에 정의
+- 유틸리티 함수는 `src/lib/utils.ts` 사용
+- 페이지는 `DashboardLayout` 래핑 필수
+- 상태 색상은 `STATUS_CONFIG`, `FILTER_STATUS_CONFIG` 등 상수 사용
+- 미사용 import는 즉시 제거
+
+## 통신 프로토콜
+- Modbus TCP/RTU: `pymodbus 3.x` (AsyncModbusTcpClient)
+- MQTT: `paho-mqtt 2.x` (CallbackAPIVersion.VERSION2 필수)
+- 시리얼: `pyserial` with CRC16 검증
+
+## 데이터베이스
+- 메인: PostgreSQL 15 + TimescaleDB 확장
+- 시계열: `sensor_readings` 테이블은 hypertable
+- ORM: SQLAlchemy 2.0 비동기 (async session)
+
+## 환경변수
+- 백엔드: `.env` 파일, `pydantic-settings` Settings 클래스
+- 프론트엔드: `NEXT_PUBLIC_` 접두사 필수

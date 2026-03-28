@@ -1,0 +1,67 @@
+# ─── Node.js / Next.js ─────────────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+dist/
+build/
+.npm
+.yarn-integrity
+
+# ─── 환경변수 (보안 중요!) ───────────────────────────────────────────────────────
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+
+# ─── Python ────────────────────────────────────────────────────────────────────
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ─── IDE / Editor ──────────────────────────────────────────────────────────────
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ─── Docker ────────────────────────────────────────────────────────────────────
+docker-data/
+postgres_data/
+redis_data/
+
+# ─── MQTT ──────────────────────────────────────────────────────────────────────
+mosquitto/data/
+mosquitto/log/
+mosquitto/certs/*.key
+mosquitto/certs/*.crt
+mosquitto/certs/*.pem
+
+# ─── 인증서 / 시크릿 ───────────────────────────────────────────────────────────
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+nginx/certs/
+
+# ─── 로그 ──────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ─── 임시 파일 ─────────────────────────────────────────────────────────────────
+*.tmp
+*.temp
+.cache/
