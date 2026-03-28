@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { mockEquipment } from '@/lib/mock-data';
 import { STATUS_CONFIG, EQUIPMENT_TYPE_CONFIG, formatRelativeTime, cn } from '@/lib/utils';
 import { Equipment } from '@/types';
-import { Search, MapPin, List, Plus, ChevronDown, Wifi, WifiOff } from 'lucide-react';
+import { Search, MapPin, List, Plus, ChevronDown, Wifi, WifiOff, LayoutDashboard, ChevronRight } from 'lucide-react';
 
 const EquipmentMap = dynamic(() => import('@/components/map/EquipmentMap'), {
   ssr: false,
@@ -132,7 +133,7 @@ export default function EquipmentPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  {['장비명 / 모델', '업체', '지역', '유형', '통신', '상태', '유량', 'TDS', '오늘 생산량', '마지막 수신'].map(h => (
+                  {['장비명 / 모델', '업체', '지역', '유형', '통신', '상태', '유량', 'TDS', '오늘 생산량', '마지막 수신', '배치도'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500">{h}</th>
                   ))}
                 </tr>
@@ -144,17 +145,18 @@ export default function EquipmentPage() {
                   const sensor = eq.sensorData;
                   const isOnline = eq.status !== 'offline';
                   return (
-                    <tr key={eq.id} className="hover:bg-slate-50 cursor-pointer transition-colors group">
+                    <tr key={eq.id} className="hover:bg-blue-50/40 transition-colors group">
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2.5">
+                        <Link href={`/equipment/${eq.id}`} className="flex items-center gap-2.5 group/link">
                           <span className="text-xl">{typeConf.icon}</span>
                           <div>
-                            <div className="font-semibold text-slate-800 group-hover:text-blue-700 transition-colors">
+                            <div className="font-semibold text-slate-800 group-hover/link:text-blue-700 transition-colors flex items-center gap-1">
                               {eq.name || eq.model}
+                              <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover/link:opacity-100 text-blue-500 transition-opacity" />
                             </div>
                             <div className="text-xs text-slate-400">{eq.model} · {eq.serialNo}</div>
                           </div>
-                        </div>
+                        </Link>
                       </td>
                       <td className="px-4 py-3">
                         <div className="text-xs text-slate-600 max-w-[130px] truncate">{eq.companyName}</div>
@@ -192,6 +194,15 @@ export default function EquipmentPage() {
                         {sensor?.dailyVolume ? `${sensor.dailyVolume.toLocaleString('ko-KR')} L` : '-'}
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-400">{formatRelativeTime(eq.lastSeen)}</td>
+                      <td className="px-4 py-3">
+                        <Link
+                          href={`/equipment/${eq.id}/layout-editor`}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-teal-50 hover:border-teal-200 border border-transparent text-xs text-slate-500 hover:text-teal-600 transition-all font-medium whitespace-nowrap"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <LayoutDashboard className="w-3.5 h-3.5" /> 배치도
+                        </Link>
+                      </td>
                     </tr>
                   );
                 })}

@@ -10,9 +10,10 @@ import VolumeChart from '@/components/dashboard/VolumeChart';
 import { STATUS_CONFIG, EQUIPMENT_TYPE_CONFIG, formatRelativeTime, cn } from '@/lib/utils';
 import { mockDashboardSummary, mockEquipment, mockAlerts, mockMaintenanceRecords } from '@/lib/mock-data';
 import { Equipment } from '@/types';
+import Link from 'next/link';
 import {
   Droplets, AlertTriangle, Wrench, Package,
-  Activity, Zap, CheckCircle2, XCircle,
+  Activity, Zap, CheckCircle2, XCircle, LayoutDashboard,
 } from 'lucide-react';
 
 const EquipmentMap = dynamic(() => import('@/components/map/EquipmentMap'), {
@@ -181,6 +182,7 @@ export default function DashboardPage() {
                     <th className="px-4 py-3 text-left font-medium">상태</th>
                     <th className="px-4 py-3 text-right font-medium">오늘 생산량</th>
                     <th className="px-4 py-3 text-right font-medium">마지막 수신</th>
+                    <th className="px-4 py-3 text-center font-medium">배치도</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -198,13 +200,13 @@ export default function DashboardPage() {
                         )}
                       >
                         <td className="px-5 py-3">
-                          <div className="flex items-center gap-2">
+                          <Link href={`/equipment/${eq.id}`} onClick={e => e.stopPropagation()} className="flex items-center gap-2 group/link">
                             <span className="text-base">{typeConf.icon}</span>
                             <div>
-                              <div className="font-medium text-slate-800">{eq.name || eq.model}</div>
+                              <div className="font-medium text-slate-800 group-hover/link:text-blue-600 transition-colors">{eq.name || eq.model}</div>
                               <div className="text-xs text-slate-400">{eq.serialNo}</div>
                             </div>
-                          </div>
+                          </Link>
                         </td>
                         <td className="px-4 py-3 text-slate-600 text-xs max-w-[140px] truncate">{eq.companyName}</td>
                         <td className="px-4 py-3 text-slate-600 text-xs">{eq.city}</td>
@@ -224,6 +226,15 @@ export default function DashboardPage() {
                         </td>
                         <td className="px-4 py-3 text-right text-xs text-slate-400">
                           {formatRelativeTime(eq.lastSeen)}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <Link
+                            href={`/equipment/${eq.id}/layout-editor`}
+                            onClick={e => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-50 hover:bg-teal-50 border border-slate-200 hover:border-teal-300 text-xs text-slate-500 hover:text-teal-600 transition-all"
+                          >
+                            <LayoutDashboard className="w-3 h-3" />
+                          </Link>
                         </td>
                       </tr>
                     );
