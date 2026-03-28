@@ -26,7 +26,8 @@ case "$1" in
   update)
     echo '코드 업데이트 및 재빌드...'
     cd /opt/waternix
-    git pull origin main
+    git fetch origin main
+    git reset --hard origin/main
     $COMPOSE build frontend backend
     $COMPOSE up -d --no-deps frontend backend
     $NGINX
