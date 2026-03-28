@@ -135,8 +135,8 @@ class CommConfig(BaseModel):
 
 
 class EquipmentBase(BaseModel):
-    company_id: UUID
-    serial_no: str = Field(..., max_length=50)
+    company_id: str  # UUID 또는 임의 ID 모두 허용
+    serial_no: str = Field(..., max_length=100)
     model: str = Field(..., max_length=100)
     equipment_type: EquipmentType
     name: Optional[str] = None

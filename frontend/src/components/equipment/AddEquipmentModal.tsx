@@ -1,11 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, ChevronRight, ChevronLeft, Check, Cpu, MapPin, Wifi, Package, Loader2 } from 'lucide-react';
 import { EquipmentType, CommType } from '@/types';
-import { mockCompanies } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
-import { equipmentApi } from '@/lib/api';
+import { equipmentApi, companiesApi } from '@/lib/api';
+
+interface Company {
+  id: string;
+  name: string;
+  city?: string;
+  district?: string;
+  contact?: string;
+}
 
 const WATERNIX_MODELS: Record<EquipmentType, { model: string; label: string; capacity: string }[]> = {
   ro: [
@@ -132,6 +139,17 @@ export default function AddEquipmentModal({ open, onClose, onAdd, onSuccess }: P
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState('');
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [companiesLoading, setCompaniesLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setCompaniesLoading(true);
+    companiesApi.list()
+      .then(data => setCompanies(data as Company[]))
+      .catch(() => setCompanies([]))
+      .finally(() => setCompaniesLoading(false));
+  }, [open]);
 
   if (!open) return null;
 
@@ -211,7 +229,7 @@ export default function AddEquipmentModal({ open, onClose, onAdd, onSuccess }: P
     if (idx > 0) setStep(STEPS[idx - 1].id);
   };
 
-  const selectedCompany = mockCompanies.find(c => c.id === form.companyId);
+  const selectedCompany = companies.find(c => c.id === form.companyId);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -330,28 +348,41 @@ export default function AddEquipmentModal({ open, onClose, onAdd, onSuccess }: P
           ) : step === 'company' ? (
             <div>
               <p className="text-sm text-slate-400 mb-4">장비를 설치할 업체를 선택하세요</p>
-              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                {mockCompanies.map(c => (
-                  <button
-                    key={c.id}
-                    onClick={() => update('companyId', c.id)}
-                    className={cn(
-                      'w-full flex items-center justify-between p-3 rounded-xl border transition-all text-left',
-                      form.companyId === c.id
-                        ? 'border-teal-500 bg-teal-500/10'
-                        : 'border-slate-700 bg-slate-800 hover:border-slate-500'
-                    )}
-                  >
-                    <div>
-                      <div className={cn('font-semibold text-sm', form.companyId === c.id ? 'text-teal-300' : 'text-white')}>
-                        {c.name}
+              {companiesLoading ? (
+                <div className="space-y-2">
+                  {[1,2,3].map(i => (
+                    <div key={i} className="h-16 bg-slate-800 rounded-xl animate-pulse" />
+                  ))}
+                </div>
+              ) : companies.length === 0 ? (
+                <div className="text-center py-8 text-slate-500 text-sm">
+                  <p>등록된 업체가 없습니다.</p>
+                  <p className="text-xs mt-1">먼저 업체를 등록해주세요.</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {companies.map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => update('companyId', c.id)}
+                      className={cn(
+                        'w-full flex items-center justify-between p-3 rounded-xl border transition-all text-left',
+                        form.companyId === c.id
+                          ? 'border-teal-500 bg-teal-500/10'
+                          : 'border-slate-700 bg-slate-800 hover:border-slate-500'
+                      )}
+                    >
+                      <div>
+                        <div className={cn('font-semibold text-sm', form.companyId === c.id ? 'text-teal-300' : 'text-white')}>
+                          {c.name}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5">{c.city} {c.district}{c.contact ? ` · ${c.contact}` : ''}</div>
                       </div>
-                      <div className="text-xs text-slate-500 mt-0.5">{c.city} {c.district} · {c.contact}</div>
-                    </div>
-                    {form.companyId === c.id && <Check className="w-4 h-4 text-teal-400 flex-shrink-0" />}
-                  </button>
-                ))}
-              </div>
+                      {form.companyId === c.id && <Check className="w-4 h-4 text-teal-400 flex-shrink-0" />}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ) : step === 'location' ? (
             <div className="space-y-3">

@@ -31,6 +31,7 @@ async function request<T>(
 // ─── Company ──────────────────────────────────────────────────────────────────
 
 export interface CompanyPayload {
+  id?: string;
   name: string;
   business_no?: string;
   contact?: string;
@@ -43,6 +44,8 @@ export interface CompanyPayload {
   contract_end?: string;
   notes?: string;
   status?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export const companiesApi = {
