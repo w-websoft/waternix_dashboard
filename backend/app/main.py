@@ -11,6 +11,8 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.api import equipment, companies
+from app.api import consumables, maintenance
+from app.db.database import init_pool, close_pool
 
 # 로깅 설정
 logging.basicConfig(
@@ -32,6 +34,9 @@ sio = socketio.AsyncServer(
 async def lifespan(app: FastAPI):
     """앱 시작/종료 이벤트"""
     logger.info(f"🚀 {settings.APP_NAME} v{settings.APP_VERSION} 시작")
+
+    # DB 연결 풀 초기화
+    await init_pool()
 
     # MQTT 서비스 시작
     from app.services.communication.mqtt_service import MQTTService
@@ -80,6 +85,7 @@ async def lifespan(app: FastAPI):
     # 종료
     if hasattr(app.state, 'mqtt'):
         app.state.mqtt.stop()
+    await close_pool()
     logger.info("워터닉스 시스템 종료")
 
 
@@ -121,6 +127,8 @@ app.add_middleware(
 # API 라우터 등록
 app.include_router(equipment.router, prefix="/api")
 app.include_router(companies.router, prefix="/api")
+app.include_router(consumables.router, prefix="/api")
+app.include_router(maintenance.router, prefix="/api")
 
 # Socket.IO ASGI 앱 마운트
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app)

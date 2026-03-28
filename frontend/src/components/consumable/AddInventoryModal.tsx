@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Check, Package, AlertTriangle } from 'lucide-react';
+import { X, Check, Package, AlertTriangle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { consumablesApi } from '@/lib/api';
 
 const CATEGORIES = [
   { value: 'filter', label: '필터류', icon: '🫧', examples: '세디먼트, 활성탄, RO멤브레인, UV램프' },
@@ -43,6 +44,8 @@ interface Props {
 export default function AddInventoryModal({ open, onClose, onAdd }: Props) {
   const [form, setForm] = useState<InventoryForm>(INITIAL);
   const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [apiError, setApiError] = useState('');
   const [errors, setErrors] = useState<Partial<Record<keyof InventoryForm, string>>>({});
 
   if (!open) return null;
@@ -61,11 +64,31 @@ export default function AddInventoryModal({ open, onClose, onAdd }: Props) {
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validate()) return;
-    setSaved(true);
-    onAdd?.(form);
-    setTimeout(() => { setSaved(false); setForm(INITIAL); onClose(); }, 1800);
+    setLoading(true);
+    setApiError('');
+    try {
+      await consumablesApi.create({
+        name: form.name,
+        category: form.category,
+        part_no: form.partNo || undefined,
+        brand: form.brand || undefined,
+        unit: form.unit || 'ea',
+        stock_qty: form.stockQty ? Number(form.stockQty) : 0,
+        min_qty: form.minQty ? Number(form.minQty) : 0,
+        unit_cost: form.unitCost ? Number(form.unitCost) : undefined,
+        supplier: form.supplier || undefined,
+        description: form.description || undefined,
+      });
+      setSaved(true);
+      onAdd?.(form);
+      setTimeout(() => { setSaved(false); setForm(INITIAL); onClose(); }, 1800);
+    } catch (e: unknown) {
+      setApiError(e instanceof Error ? e.message : '등록 중 오류가 발생했습니다');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const isLow = form.stockQty && form.minQty && Number(form.stockQty) <= Number(form.minQty);
@@ -73,7 +96,7 @@ export default function AddInventoryModal({ open, onClose, onAdd }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
+      <div className="relative z-10 w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div className="flex items-center gap-3">
@@ -218,12 +241,19 @@ export default function AddInventoryModal({ open, onClose, onAdd }: Props) {
         </div>
 
         {!saved && (
-          <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
-            <button onClick={onClose} className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700">취소</button>
-            <button onClick={handleSubmit}
-              className="flex items-center gap-2 px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold rounded-xl transition-all">
-              <Check className="w-4 h-4" /> 품목 등록
-            </button>
+          <div className="flex flex-col gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
+            {apiError && <p className="text-xs text-red-500 text-right">{apiError}</p>}
+            <div className="flex justify-end gap-3">
+              <button onClick={onClose} className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700">취소</button>
+              <button
+                onClick={handleSubmit}
+                disabled={loading}
+                className="flex items-center gap-2 px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all"
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                {loading ? '등록 중...' : '품목 등록'}
+              </button>
+            </div>
           </div>
         )}
       </div>

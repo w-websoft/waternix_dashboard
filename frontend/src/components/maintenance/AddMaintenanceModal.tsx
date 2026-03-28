@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Check, Wrench, Calendar, User, Cpu } from 'lucide-react';
+import { X, Check, Wrench, Calendar, User, Cpu, Loader2 } from 'lucide-react';
 import { mockEquipment, mockCompanies } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
 import { MaintenanceType } from '@/types';
+import { maintenanceApi } from '@/lib/api';
 
 const TYPE_OPTIONS: { value: MaintenanceType; label: string; desc: string; color: string }[] = [
   { value: 'preventive', label: '예방점검', desc: '정기 예방 점검 및 소모품 교체', color: 'border-blue-400 bg-blue-50 text-blue-700' },
@@ -50,6 +51,8 @@ export default function AddMaintenanceModal({ open, onClose, presetEquipmentId, 
       : '',
   });
   const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [apiError, setApiError] = useState('');
   const [errors, setErrors] = useState<Partial<Record<keyof MaintenanceForm, string>>>({});
 
   if (!open) return null;
@@ -78,11 +81,33 @@ export default function AddMaintenanceModal({ open, onClose, presetEquipmentId, 
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validate()) return;
-    setSaved(true);
-    onAdd?.(form);
-    setTimeout(() => { setSaved(false); setForm(INITIAL); onClose(); }, 1800);
+    setLoading(true);
+    setApiError('');
+    try {
+      const eq = mockEquipment.find(e => e.id === form.equipmentId);
+      const companyId = form.companyId || eq?.companyId || '';
+
+      await maintenanceApi.create({
+        equipment_id: form.equipmentId,
+        company_id: companyId,
+        type: form.type as string,
+        title: form.title,
+        description: form.description || undefined,
+        technician: form.technician || undefined,
+        scheduled_date: form.scheduledDate || undefined,
+        labor_hours: form.estimatedHours ? Number(form.estimatedHours) : undefined,
+        cost: form.cost ? Number(form.cost) : undefined,
+      });
+      setSaved(true);
+      onAdd?.(form);
+      setTimeout(() => { setSaved(false); setForm(INITIAL); onClose(); }, 1800);
+    } catch (e: unknown) {
+      setApiError(e instanceof Error ? e.message : '등록 중 오류가 발생했습니다');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const selectedEquipment = mockEquipment.find(e => e.id === form.equipmentId);
@@ -90,7 +115,7 @@ export default function AddMaintenanceModal({ open, onClose, presetEquipmentId, 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
+      <div className="relative z-10 w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div className="flex items-center gap-3">
@@ -252,12 +277,19 @@ export default function AddMaintenanceModal({ open, onClose, presetEquipmentId, 
         </div>
 
         {!saved && (
-          <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
-            <button onClick={onClose} className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700">취소</button>
-            <button onClick={handleSubmit}
-              className="flex items-center gap-2 px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-all">
-              <Check className="w-4 h-4" /> 작업 등록
-            </button>
+          <div className="flex flex-col gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
+            {apiError && <p className="text-xs text-red-500 text-right">{apiError}</p>}
+            <div className="flex justify-end gap-3">
+              <button onClick={onClose} className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700">취소</button>
+              <button
+                onClick={handleSubmit}
+                disabled={loading}
+                className="flex items-center gap-2 px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all"
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                {loading ? '등록 중...' : '작업 등록'}
+              </button>
+            </div>
           </div>
         )}
       </div>

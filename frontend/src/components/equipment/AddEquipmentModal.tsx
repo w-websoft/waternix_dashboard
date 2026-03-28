@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { X, ChevronRight, ChevronLeft, Check, Cpu, MapPin, Wifi, Package } from 'lucide-react';
+import { X, ChevronRight, ChevronLeft, Check, Cpu, MapPin, Wifi, Package, Loader2 } from 'lucide-react';
 import { EquipmentType, CommType } from '@/types';
 import { mockCompanies } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
+import { equipmentApi } from '@/lib/api';
 
 const WATERNIX_MODELS: Record<EquipmentType, { model: string; label: string; capacity: string }[]> = {
   ro: [
@@ -128,6 +129,8 @@ export default function AddEquipmentModal({ open, onClose, onAdd }: Props) {
   const [step, setStep] = useState<Step>('type');
   const [form, setForm] = useState<FormData>(INITIAL_FORM);
   const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [apiError, setApiError] = useState('');
 
   if (!open) return null;
 
@@ -147,15 +150,47 @@ export default function AddEquipmentModal({ open, onClose, onAdd }: Props) {
     setStep('company');
   };
 
-  const handleSubmit = () => {
-    setSuccess(true);
-    onAdd?.(form);
-    setTimeout(() => {
-      setSuccess(false);
-      setStep('type');
-      setForm(INITIAL_FORM);
-      onClose();
-    }, 2000);
+  const handleSubmit = async () => {
+    setLoading(true);
+    setApiError('');
+    try {
+      const commConfig =
+        form.commType === 'modbus_tcp' ? { host: form.commIp, port: Number(form.commPort) || 502, slave_id: Number(form.commSlaveId) || 1 }
+        : form.commType === 'mqtt' ? { host: form.commIp, port: Number(form.commPort) || 1883, topic: form.commMqttTopic }
+        : form.commType === 'modbus_rtu' || form.commType === 'serial' ? { serial_port: form.commIp, baudrate: Number(form.commBaudRate) || 9600 }
+        : form.commType === 'opcua' ? { endpoint: `opc.tcp://${form.commIp}:${form.commPort || 4840}` }
+        : undefined;
+
+      await equipmentApi.create({
+        company_id: form.companyId,
+        serial_no: form.serialNo,
+        model: form.model,
+        equipment_type: form.equipmentType,
+        name: form.name || undefined,
+        lat: form.lat ? Number(form.lat) : undefined,
+        lng: form.lng ? Number(form.lng) : undefined,
+        address: form.address || undefined,
+        city: form.city || undefined,
+        district: form.district || undefined,
+        install_date: form.installDate || undefined,
+        warranty_end: form.warrantyEnd || undefined,
+        capacity_lph: form.capacityLph ? Number(form.capacityLph) : undefined,
+        comm_type: form.commType || undefined,
+        comm_config: commConfig,
+      });
+      setSuccess(true);
+      onAdd?.(form);
+      setTimeout(() => {
+        setSuccess(false);
+        setStep('type');
+        setForm(INITIAL_FORM);
+        onClose();
+      }, 2000);
+    } catch (e: unknown) {
+      setApiError(e instanceof Error ? e.message : '장비 등록 중 오류가 발생했습니다');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const canNext = () => {
@@ -179,7 +214,7 @@ export default function AddEquipmentModal({ open, onClose, onAdd }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
+      <div className="relative z-10 w-full max-w-2xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
           <div>
@@ -481,12 +516,17 @@ export default function AddEquipmentModal({ open, onClose, onAdd }: Props) {
               <ChevronLeft className="w-4 h-4" /> 이전
             </button>
             {step === 'confirm' ? (
-              <button
-                onClick={handleSubmit}
-                className="flex items-center gap-2 px-6 py-2.5 bg-teal-500 hover:bg-teal-400 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-teal-500/30"
-              >
-                <Check className="w-4 h-4" /> 장비 등록
-              </button>
+              <div className="flex flex-col items-end gap-2">
+                {apiError && <p className="text-xs text-red-400">{apiError}</p>}
+                <button
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-teal-500/30"
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  {loading ? '등록 중...' : '장비 등록'}
+                </button>
+              </div>
             ) : (
               <button
                 onClick={next}
