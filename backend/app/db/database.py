@@ -12,22 +12,46 @@ logger = logging.getLogger(__name__)
 _pool: Optional[asyncpg.Pool] = None
 
 
+def _parse_db_url(url: str) -> dict:
+    """
+    비밀번호에 특수문자(#, @, ! 등)가 포함된 DB URL 안전 파싱
+    형식: postgresql[+asyncpg]://user:password@host:port/dbname
+    """
+    import re
+    # scheme 제거
+    url = re.sub(r'^postgresql(\+asyncpg)?://', '', url)
+    # user:password@host:port/dbname 구조 파싱
+    # @를 가장 마지막 기준으로 분리 (비밀번호에 @ 포함 가능성)
+    at_idx = url.rfind('@')
+    credentials = url[:at_idx]
+    hostpart = url[at_idx + 1:]
+
+    colon_idx = credentials.index(':')
+    user = credentials[:colon_idx]
+    password = credentials[colon_idx + 1:]
+
+    # host:port/dbname
+    slash_idx = hostpart.index('/')
+    host_port = hostpart[:slash_idx]
+    dbname = hostpart[slash_idx + 1:]
+
+    if ':' in host_port:
+        host, port_str = host_port.rsplit(':', 1)
+        port = int(port_str)
+    else:
+        host = host_port
+        port = 5432
+
+    return dict(host=host, port=port, user=user, password=password, database=dbname)
+
+
 async def init_pool() -> None:
     """앱 시작 시 연결 풀 초기화"""
     global _pool
     try:
-        from urllib.parse import urlparse, unquote
-
-        raw = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
-        parsed = urlparse(raw)
-
-        # 비밀번호에 특수문자(# 등)가 있을 때도 안전하게 처리
+        params = _parse_db_url(settings.DATABASE_URL)
         _pool = await asyncpg.create_pool(
-            host=parsed.hostname,
-            port=parsed.port or 5432,
-            user=parsed.username,
-            password=unquote(parsed.password) if parsed.password else None,
-            database=parsed.path.lstrip("/"),
+            **params,
             min_size=2,
             max_size=10,
             command_timeout=30,
