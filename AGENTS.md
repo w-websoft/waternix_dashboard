@@ -7,10 +7,78 @@
 ## 프로젝트 개요
 
 **프로젝트명**: 워터닉스(WATERNIX) IoT 수처리 장비 통합 관리 시스템  
-**버전**: v1.0.0  
-**상태**: Phase 1 개발 완료 (프론트엔드 전체, 백엔드 구조 설계)  
+**버전**: v3.0.0  
+**상태**: Phase 1 완료 + 서버 배포 완료 (2026-03-28)  
 **저장소**: https://github.com/w-websoft/waternix_dashboard.git  
-**로컬 경로**: `/Users/wongyun_w/Desktop/water_dashboard`
+**로컬 경로**: `/Users/wongyun_w/Desktop/water_dashboard`  
+**운영 서버**: https://gwaternix.w-websoftsrv.kr  
+**서버 코드 경로**: `/opt/waternix`
+
+---
+
+## 🚀 운영 서버 정보 (2026-03-28 배포)
+
+### 서버 접속
+| 항목 | 정보 |
+|------|------|
+| **Host** | 112.162.17.116 |
+| **OS** | Ubuntu 22.04.5 LTS x86_64 |
+| **패널** | aaPanel 8.0.0 |
+| **도메인** | gwaternix.w-websoftsrv.kr (SSL 적용) |
+| **코드 경로** | /opt/waternix |
+| **관리 스크립트** | /opt/waternix/manage.sh |
+
+### 컨테이너 포트 현황
+| 컨테이너 | 이미지 | 로컬 포트 | 설명 |
+|----------|--------|----------|------|
+| waternix_frontend | waternix-frontend | 3010→3000 | Next.js 앱 |
+| waternix_backend | waternix-backend | 8010→8000 | FastAPI |
+| waternix_postgres | timescale/timescaledb:pg15 | 5433→5432 | 시계열 DB |
+| waternix_redis | redis:7-alpine | 6382→6379 | 캐시 |
+| waternix_mqtt | eclipse-mosquitto:2 | 1883, 9002→9001 | MQTT 브로커 |
+
+> 기존 서버 운영 중인 포트 (충돌 회피): 3000(mozips), 6379(mozips-redis), 6381(comit-redis), 8089(comit-nginx), 9001(minio)
+
+### DB 접속 (PostgreSQL)
+```
+Host: 127.0.0.1:5433
+DB: waternix_db
+User: waternix
+PW: Waternix2026!#
+```
+
+### 서버 관리 명령어
+```bash
+# 상태 확인
+/opt/waternix/manage.sh status
+
+# 로그 확인
+/opt/waternix/manage.sh logs frontend
+/opt/waternix/manage.sh logs backend
+
+# 코드 업데이트 (git pull → 재빌드 → 재시작)
+/opt/waternix/manage.sh update
+
+# 서비스 재시작
+/opt/waternix/manage.sh restart
+
+# Nginx 리로드
+/opt/waternix/manage.sh nginx
+# 또는: /www/server/nginx/sbin/nginx -s reload -c /www/server/nginx/conf/nginx.conf
+```
+
+### Nginx 가상호스트 파일
+```
+/www/server/panel/vhost/nginx/gwaternix.w-websoftsrv.kr.conf
+```
+→ 프론트엔드: proxy_pass http://127.0.0.1:3010  
+→ 백엔드 API: proxy_pass http://127.0.0.1:8010/api/  
+→ WebSocket: proxy_pass http://127.0.0.1:8010/socket.io/
+
+### 주의사항
+- 서버에는 다른 사이트가 운영 중 (mozips, comit, sama 등) - 포트/컨테이너명 충돌 주의
+- aaPanel nginx는 `/www/server/nginx/sbin/nginx`로 실행 (시스템 nginx와 별개)
+- 코드 업데이트는 반드시 `/opt/waternix/manage.sh update` 사용 (GitHub → 빌드 → 재시작 자동화)
 
 ### 클라이언트 정보
 - **회사**: 워터닉스(주) (부산 소재, 수처리 장비 제조)
