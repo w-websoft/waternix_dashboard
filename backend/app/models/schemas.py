@@ -217,17 +217,18 @@ class EquipmentMapPoint(BaseModel):
 # ─── Filter ──────────────────────────────────────────────────────────────────
 
 class FilterBase(BaseModel):
-    equipment_id: UUID
-    filter_type: FilterType
-    filter_name: Optional[str] = None
+    equipment_id: Optional[str] = None  # UUID 또는 임의 ID
+    filter_type: Optional[str] = None  # DB: varchar(100)
+    filter_name: str
     stage: Optional[int] = None
     install_date: Optional[date] = None
     replace_date: Optional[date] = None
-    life_hours: Optional[int] = None
-    life_volume: Optional[int] = None
+    used_percent: float = 0
+    status: str = "normal"
     supplier: Optional[str] = None
     part_no: Optional[str] = None
-    cost: Optional[float] = None
+    equipment_name: Optional[str] = None
+    company_name: Optional[str] = None
 
 
 class FilterCreate(FilterBase):
@@ -235,14 +236,8 @@ class FilterCreate(FilterBase):
 
 
 class FilterResponse(FilterBase):
-    id: UUID
-    used_hours: float = 0
-    used_volume: float = 0
-    used_percent: Optional[float] = None
-    status: FilterStatus
-    equipment_name: Optional[str] = None
-    company_name: Optional[str] = None
-    created_at: datetime
+    id: str
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -251,16 +246,18 @@ class FilterResponse(FilterBase):
 # ─── Maintenance ─────────────────────────────────────────────────────────────
 
 class MaintenanceBase(BaseModel):
-    equipment_id: UUID
-    company_id: UUID
+    equipment_id: Optional[str] = None  # UUID 또는 임의 ID
+    company_id: Optional[str] = None    # UUID 또는 임의 ID
     type: MaintenanceType
-    title: str = Field(..., max_length=200)
+    title: str = Field(..., max_length=300)
     description: Optional[str] = None
     technician: Optional[str] = None
     scheduled_date: Optional[date] = None
-    labor_hours: Optional[float] = None
-    cost: Optional[float] = None
-    next_maintenance: Optional[date] = None
+    cost: Optional[int] = None
+    parts_used: Optional[str] = None    # DB: text (comma-separated)
+    notes: Optional[str] = None
+    equipment_name: Optional[str] = None
+    company_name: Optional[str] = None
 
 
 class MaintenanceCreate(MaintenanceBase):
@@ -270,21 +267,17 @@ class MaintenanceCreate(MaintenanceBase):
 class MaintenanceComplete(BaseModel):
     completed_date: date
     technician: str
-    labor_hours: Optional[float] = None
-    cost: Optional[float] = None
+    cost: Optional[int] = None
     description: Optional[str] = None
-    parts_used: Optional[List[Dict[str, Any]]] = None
-    next_maintenance: Optional[date] = None
+    parts_used: Optional[str] = None
 
 
 class MaintenanceResponse(MaintenanceBase):
-    id: UUID
+    id: str
     status: MaintenanceStatus
     completed_date: Optional[date] = None
-    parts_used: Optional[List[Dict[str, Any]]] = None
-    equipment_name: Optional[str] = None
-    company_name: Optional[str] = None
-    created_at: datetime
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

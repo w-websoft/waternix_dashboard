@@ -73,11 +73,14 @@ export interface CommConfig {
 }
 
 export interface EquipmentPayload {
+  id?: string;
   company_id: string;
+  company_name?: string;
   serial_no: string;
   model: string;
   equipment_type: string;
   name?: string;
+  status?: string;
   lat?: number;
   lng?: number;
   address?: string;
@@ -88,6 +91,8 @@ export interface EquipmentPayload {
   capacity_lph?: number;
   comm_type?: string;
   comm_config?: CommConfig;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export const equipmentApi = {
@@ -137,16 +142,23 @@ export const consumablesApi = {
 // ─── Maintenance ──────────────────────────────────────────────────────────────
 
 export interface MaintenancePayload {
-  equipment_id: string;
-  company_id: string;
+  id?: string;
+  equipment_id?: string;
+  company_id?: string;
+  equipment_name?: string;
+  company_name?: string;
   type: string;
   title: string;
   description?: string;
   technician?: string;
   scheduled_date?: string;
-  labor_hours?: number;
+  completed_date?: string;
   cost?: number;
-  next_maintenance?: string;
+  parts_used?: string;
+  notes?: string;
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export const maintenanceApi = {
@@ -154,7 +166,7 @@ export const maintenanceApi = {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
     return request<MaintenancePayload[]>(`/maintenance${qs}`);
   },
-  create: (data: MaintenancePayload) =>
+  create: (data: Partial<MaintenancePayload>) =>
     request<MaintenancePayload>('/maintenance', { method: 'POST', body: JSON.stringify(data) }),
   complete: (id: string, data: object) =>
     request<MaintenancePayload>(`/maintenance/${id}/complete`, { method: 'PUT', body: JSON.stringify(data) }),

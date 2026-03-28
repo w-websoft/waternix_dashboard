@@ -96,34 +96,50 @@ async def create_maintenance(data: MaintenanceCreate):
         pool = await get_pool()
         async with pool.acquire() as conn:
             mid = str(uuid.uuid4())
+
+            # 장비명/업체명 자동 조회
+            equipment_name = data.equipment_name
+            company_name = data.company_name
+
+            if data.equipment_id and not equipment_name:
+                eq = await conn.fetchrow(
+                    "SELECT name, company_name FROM equipment WHERE id = $1",
+                    str(data.equipment_id)
+                )
+                if eq:
+                    equipment_name = eq["name"]
+                    if not company_name:
+                        company_name = eq["company_name"]
+
+            if data.company_id and not company_name:
+                cp = await conn.fetchrow("SELECT name FROM companies WHERE id = $1", str(data.company_id))
+                if cp:
+                    company_name = cp["name"]
+
             row = await conn.fetchrow(
                 """
                 INSERT INTO maintenance_records (
-                    id, equipment_id, company_id, type, title, description,
-                    technician, scheduled_date, labor_hours, cost,
-                    next_maintenance, status
-                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'scheduled')
+                    id, equipment_id, equipment_name, company_id, company_name,
+                    type, title, description, technician, scheduled_date,
+                    cost, parts_used, notes, status
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'scheduled')
                 RETURNING *
                 """,
                 mid,
-                str(data.equipment_id),
-                str(data.company_id),
+                str(data.equipment_id) if data.equipment_id else None,
+                equipment_name,
+                str(data.company_id) if data.company_id else None,
+                company_name,
                 data.type.value,
                 data.title,
                 data.description,
                 data.technician,
                 data.scheduled_date,
-                data.labor_hours,
                 data.cost,
-                data.next_maintenance,
+                data.parts_used,
+                data.notes,
             )
-            result = _row_to_maintenance(row)
-            # 장비/업체명 조회
-            eq = await conn.fetchrow("SELECT name FROM equipment WHERE id = $1", str(data.equipment_id))
-            cp = await conn.fetchrow("SELECT name FROM companies WHERE id = $1", str(data.company_id))
-            result["equipment_name"] = eq["name"] if eq else None
-            result["company_name"] = cp["name"] if cp else None
-            return result
+            return _row_to_maintenance(row)
     except Exception as e:
         logger.error(f"유지보수 등록 오류: {e}")
         raise HTTPException(status_code=500, detail=f"유지보수 등록 실패: {str(e)}")
@@ -140,20 +156,18 @@ async def complete_maintenance(maintenance_id: str, data: MaintenanceComplete):
                 SET status = 'completed',
                     completed_date = $1,
                     technician = $2,
-                    labor_hours = COALESCE($3, labor_hours),
-                    cost = COALESCE($4, cost),
-                    description = COALESCE($5, description),
-                    next_maintenance = $6,
+                    cost = COALESCE($3, cost),
+                    description = COALESCE($4, description),
+                    parts_used = COALESCE($5, parts_used),
                     updated_at = NOW()
-                WHERE id = $7
+                WHERE id = $6
                 RETURNING *
                 """,
                 data.completed_date,
                 data.technician,
-                data.labor_hours,
                 data.cost,
                 data.description,
-                data.next_maintenance,
+                data.parts_used,
                 maintenance_id,
             )
             if not row:

@@ -1,11 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Check, Wrench, Calendar, User, Cpu, Loader2 } from 'lucide-react';
-import { mockEquipment, mockCompanies } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
 import { MaintenanceType } from '@/types';
-import { maintenanceApi } from '@/lib/api';
+import { maintenanceApi, companiesApi, equipmentApi } from '@/lib/api';
 
 const TYPE_OPTIONS: { value: MaintenanceType; label: string; desc: string; color: string }[] = [
   { value: 'preventive', label: '예방점검', desc: '정기 예방 점검 및 소모품 교체', color: 'border-blue-400 bg-blue-50 text-blue-700' },
@@ -16,6 +15,9 @@ const TYPE_OPTIONS: { value: MaintenanceType; label: string; desc: string; color
 
 const TECHNICIANS = ['김기술', '이엔지', '박수리', '최점검', '정유지', '외부 업체'];
 
+interface Company { id: string; name: string; }
+interface Equipment { id: string; name?: string; model: string; serial_no: string; company_id?: string; company_name?: string; city?: string; district?: string; }
+
 interface MaintenanceForm {
   companyId: string;
   equipmentId: string;
@@ -24,7 +26,6 @@ interface MaintenanceForm {
   description: string;
   technician: string;
   scheduledDate: string;
-  estimatedHours: string;
   cost: string;
   partsUsed: string;
 }
@@ -32,7 +33,7 @@ interface MaintenanceForm {
 const INITIAL: MaintenanceForm = {
   companyId: '', equipmentId: '', type: '', title: '', description: '',
   technician: '', scheduledDate: new Date().toISOString().split('T')[0],
-  estimatedHours: '', cost: '', partsUsed: '',
+  cost: '', partsUsed: '',
 };
 
 interface Props {
@@ -44,17 +45,30 @@ interface Props {
 }
 
 export default function AddMaintenanceModal({ open, onClose, presetEquipmentId, onAdd, onSuccess }: Props) {
-  const [form, setForm] = useState<MaintenanceForm>({
-    ...INITIAL,
-    equipmentId: presetEquipmentId || '',
-    companyId: presetEquipmentId
-      ? mockEquipment.find(e => e.id === presetEquipmentId)?.companyId || ''
-      : '',
-  });
+  const [form, setForm] = useState<MaintenanceForm>({ ...INITIAL, equipmentId: presetEquipmentId || '' });
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState('');
   const [errors, setErrors] = useState<Partial<Record<keyof MaintenanceForm, string>>>({});
+
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [equipmentList, setEquipmentList] = useState<Equipment[]>([]);
+  const [dataLoading, setDataLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setDataLoading(true);
+    Promise.all([
+      companiesApi.list(),
+      equipmentApi.list(),
+    ]).then(([cData, eData]) => {
+      setCompanies(cData as Company[]);
+      setEquipmentList(eData as Equipment[]);
+    }).catch(() => {
+      setCompanies([]);
+      setEquipmentList([]);
+    }).finally(() => setDataLoading(false));
+  }, [open]);
 
   if (!open) return null;
 
@@ -67,8 +81,8 @@ export default function AddMaintenanceModal({ open, onClose, presetEquipmentId, 
     if (errors[field]) setErrors(e => ({ ...e, [field]: '' }));
   };
 
-  const companyEquipment = mockEquipment.filter(e =>
-    !form.companyId || e.companyId === form.companyId
+  const companyEquipment = equipmentList.filter(e =>
+    !form.companyId || e.company_id === form.companyId || e.company_name === companies.find(c => c.id === form.companyId)?.name
   );
 
   const validate = () => {
@@ -87,19 +101,19 @@ export default function AddMaintenanceModal({ open, onClose, presetEquipmentId, 
     setLoading(true);
     setApiError('');
     try {
-      const eq = mockEquipment.find(e => e.id === form.equipmentId);
-      const companyId = form.companyId || eq?.companyId || '';
+      const selectedEq = equipmentList.find(e => e.id === form.equipmentId);
+      const companyId = form.companyId || selectedEq?.company_id || '';
 
       await maintenanceApi.create({
-        equipment_id: form.equipmentId,
-        company_id: companyId,
+        equipment_id: form.equipmentId || undefined,
+        company_id: companyId || undefined,
         type: form.type as string,
         title: form.title,
         description: form.description || undefined,
         technician: form.technician || undefined,
         scheduled_date: form.scheduledDate || undefined,
-        labor_hours: form.estimatedHours ? Number(form.estimatedHours) : undefined,
         cost: form.cost ? Number(form.cost) : undefined,
+        parts_used: form.partsUsed || undefined,
       });
       setSaved(true);
       onAdd?.(form);
@@ -112,7 +126,7 @@ export default function AddMaintenanceModal({ open, onClose, presetEquipmentId, 
     }
   };
 
-  const selectedEquipment = mockEquipment.find(e => e.id === form.equipmentId);
+  const selectedEquipment = equipmentList.find(e => e.id === form.equipmentId);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -176,32 +190,36 @@ export default function AddMaintenanceModal({ open, onClose, presetEquipmentId, 
                     대상 장비<span className="text-red-500 ml-0.5">*</span>
                   </label>
                 </div>
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">업체 필터</label>
-                    <select value={form.companyId} onChange={e => update('companyId', e.target.value)}
-                      className="w-full bg-slate-50 text-slate-900 text-sm px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-blue-500">
-                      <option value="">전체 업체</option>
-                      {mockCompanies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
+                {dataLoading ? (
+                  <div className="h-20 bg-slate-100 rounded-xl animate-pulse" />
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-1">업체 필터</label>
+                      <select value={form.companyId} onChange={e => update('companyId', e.target.value)}
+                        className="w-full bg-slate-50 text-slate-900 text-sm px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-blue-500">
+                        <option value="">전체 업체</option>
+                        {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-1">장비 선택 *</label>
+                      <select value={form.equipmentId} onChange={e => update('equipmentId', e.target.value)}
+                        className={cn(
+                          'w-full bg-slate-50 text-slate-900 text-sm px-3 py-2 rounded-lg border focus:outline-none focus:border-blue-500',
+                          errors.equipmentId ? 'border-red-400' : 'border-slate-200'
+                        )}>
+                        <option value="">선택</option>
+                        {companyEquipment.map(e => (
+                          <option key={e.id} value={e.id}>{e.name || e.model} ({e.serial_no})</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">장비 선택 *</label>
-                    <select value={form.equipmentId} onChange={e => update('equipmentId', e.target.value)}
-                      className={cn(
-                        'w-full bg-slate-50 text-slate-900 text-sm px-3 py-2 rounded-lg border focus:outline-none focus:border-blue-500',
-                        errors.equipmentId ? 'border-red-400' : 'border-slate-200'
-                      )}>
-                      <option value="">선택</option>
-                      {companyEquipment.map(e => (
-                        <option key={e.id} value={e.id}>{e.name || e.model} ({e.serialNo})</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                )}
                 {selectedEquipment && (
                   <div className="p-2.5 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-700">
-                    📍 {selectedEquipment.city} {selectedEquipment.district} · {selectedEquipment.companyName}
+                    📍 {selectedEquipment.city} {selectedEquipment.district} · {selectedEquipment.company_name}
                   </div>
                 )}
                 {errors.equipmentId && <p className="text-xs text-red-500 mt-1">{errors.equipmentId}</p>}
@@ -251,19 +269,16 @@ export default function AddMaintenanceModal({ open, onClose, presetEquipmentId, 
                         errors.scheduledDate ? 'border-red-400' : 'border-slate-200')} />
                   </div>
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1">예상 소요 시간 (h)</label>
-                    <input type="number" step="0.5" min="0.5" value={form.estimatedHours} onChange={e => update('estimatedHours', e.target.value)}
-                      placeholder="예: 2.5"
-                      className="w-full bg-slate-50 text-slate-900 text-sm px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-blue-500" />
-                  </div>
-                  <div>
                     <label className="block text-xs text-slate-400 mb-1">예상 비용 (원)</label>
                     <input type="number" step="1000" value={form.cost} onChange={e => update('cost', e.target.value)}
                       placeholder="예: 150000"
                       className="w-full bg-slate-50 text-slate-900 text-sm px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-blue-500" />
                   </div>
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">담당 기술자<span className="text-red-500">*</span></label>
+                  <div className="col-span-2">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <User className="w-3.5 h-3.5 text-slate-400" />
+                      <label className="block text-xs text-slate-400">담당 기술자<span className="text-red-500">*</span></label>
+                    </div>
                     <select value={form.technician} onChange={e => update('technician', e.target.value)}
                       className={cn('w-full bg-slate-50 text-slate-900 text-sm px-3 py-2 rounded-lg border focus:outline-none focus:border-blue-500',
                         errors.technician ? 'border-red-400' : 'border-slate-200')}>
