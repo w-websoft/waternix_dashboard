@@ -91,7 +91,7 @@ export default function AlertsPage() {
   return (
     <DashboardLayout title="알림 관리" subtitle={`미처리 알림 ${counts.total}건`}>
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mb-4 sm:mb-6">
         {[
           { label: '전체 알림', value: mockAlerts.length, color: 'text-slate-800', bg: 'bg-white' },
           { label: '긴급 (미처리)', value: counts.critical, color: 'text-red-700', bg: 'bg-red-50 border-red-200' },

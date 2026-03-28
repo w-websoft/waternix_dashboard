@@ -64,24 +64,21 @@ export default function EquipmentPage() {
   return (
     <DashboardLayout title="장비 관리" subtitle={`총 ${mockEquipment.length}대 장비 | 필터 결과 ${filtered.length}대`}>
       {/* Status Quick Filters */}
-      <div className="flex gap-3 mb-5 flex-wrap">
+      <div className="flex gap-2 mb-4 flex-wrap">
         {Object.entries(STATUS_CONFIG).map(([status, config]) => (
           <button
             key={status}
             onClick={() => setStatusFilter(statusFilter === status ? 'all' : status)}
             className={cn(
-              'flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-all',
+              'flex items-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg border text-xs sm:text-sm font-medium transition-all',
               statusFilter === status
                 ? `${config.bg} ${config.color} border-current`
                 : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
             )}
           >
-            <span className={cn('w-2 h-2 rounded-full', config.dot)} />
+            <span className={cn('w-2 h-2 rounded-full flex-shrink-0', config.dot)} />
             {config.label}
-            <span className={cn(
-              'px-1.5 py-0.5 rounded-full text-xs font-bold',
-              statusFilter === status ? 'bg-white/60' : 'bg-slate-100 text-slate-500'
-            )}>
+            <span className={cn('px-1.5 py-0.5 rounded-full text-xs font-bold', statusFilter === status ? 'bg-white/60' : 'bg-slate-100 text-slate-500')}>
               {statusCounts[status] || 0}
             </span>
           </button>
@@ -89,14 +86,14 @@ export default function EquipmentPage() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <div className="relative flex-1 min-w-60">
+      <div className="flex items-center gap-2 sm:gap-3 mb-4 flex-wrap">
+        <div className="relative flex-1 min-w-0 sm:min-w-48">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="장비명, 모델, 시리얼번호, 업체명, 지역 검색..."
+            placeholder="장비명, 모델, 업체명 검색..."
             className="w-full pl-10 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -115,38 +112,26 @@ export default function EquipmentPage() {
         </div>
 
         <div className="flex rounded-lg border border-slate-200 overflow-hidden bg-white">
-          <button
-            onClick={() => setViewMode('list')}
-            className={cn('flex items-center gap-2 px-3 py-2 text-sm', viewMode === 'list' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50')}
-          >
-            <List className="w-4 h-4" /> 목록
+          <button onClick={() => setViewMode('list')} className={cn('flex items-center gap-1.5 px-3 py-2 text-sm', viewMode === 'list' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50')}>
+            <List className="w-4 h-4" /> <span className="hidden sm:inline">목록</span>
           </button>
-          <button
-            onClick={() => setViewMode('map')}
-            className={cn('flex items-center gap-2 px-3 py-2 text-sm', viewMode === 'map' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50')}
-          >
-            <MapPin className="w-4 h-4" /> 지도
+          <button onClick={() => setViewMode('map')} className={cn('flex items-center gap-1.5 px-3 py-2 text-sm', viewMode === 'map' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50')}>
+            <MapPin className="w-4 h-4" /> <span className="hidden sm:inline">지도</span>
           </button>
         </div>
 
-        <button
-          onClick={handleExportCsv}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors"
-        >
-          <Download className="w-4 h-4" /> CSV 내보내기
+        <button onClick={handleExportCsv} className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50">
+          <Download className="w-4 h-4" /> CSV
         </button>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" /> 장비 등록
+        <button onClick={() => setShowAddModal(true)} className="flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+          <Plus className="w-4 h-4" /> <span className="hidden sm:inline">장비 등록</span><span className="sm:hidden">등록</span>
         </button>
       </div>
       <AddEquipmentModal open={showAddModal} onClose={() => setShowAddModal(false)} />
 
       {/* Content */}
       {viewMode === 'map' ? (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden" style={{ height: '600px' }}>
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden h-[300px] sm:h-[500px] lg:h-[600px]">
           <EquipmentMap
             equipment={filtered}
             selectedId={selectedEquipment?.id}
@@ -156,12 +141,42 @@ export default function EquipmentPage() {
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* 모바일 카드 뷰 */}
+          <div className="sm:hidden divide-y divide-slate-100">
+            {filtered.map((eq) => {
+              const statusConf = STATUS_CONFIG[eq.status];
+              const typeConf = EQUIPMENT_TYPE_CONFIG[eq.equipmentType];
+              const sensor = eq.sensorData;
+              return (
+                <Link key={eq.id} href={`/equipment/${eq.id}`} className="flex items-start gap-3 px-4 py-3.5 hover:bg-slate-50 transition-colors">
+                  <span className="text-2xl flex-shrink-0 mt-0.5">{typeConf.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="font-semibold text-slate-800 text-sm truncate">{eq.name || eq.model}</span>
+                      <span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full border flex-shrink-0', statusConf.bg, statusConf.color)}>{statusConf.label}</span>
+                    </div>
+                    <div className="text-xs text-slate-400 truncate">{eq.companyName} · {eq.city}</div>
+                    <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500">
+                      {sensor?.flowRate !== undefined && sensor.flowRate > 0 && <span>💧 {sensor.flowRate.toFixed(1)} L/m</span>}
+                      {sensor?.outletTds !== undefined && (
+                        <span className={sensor.outletTds > 20 ? 'text-red-600 font-semibold' : ''}>{sensor.outletTds} ppm</span>
+                      )}
+                      <span>{eq.commType?.toUpperCase()}</span>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-300 flex-shrink-0 mt-1" />
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* 데스크톱 테이블 뷰 */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
                   {['장비명 / 모델', '업체', '지역', '유형', '통신', '상태', '유량', 'TDS', '오늘 생산량', '마지막 수신', '배치도'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500">{h}</th>
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -185,16 +200,9 @@ export default function EquipmentPage() {
                           </div>
                         </Link>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="text-xs text-slate-600 max-w-[130px] truncate">{eq.companyName}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="text-xs text-slate-600">{eq.city}</div>
-                        <div className="text-xs text-slate-400">{eq.district}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs text-slate-500">{typeConf.label}</span>
-                      </td>
+                      <td className="px-4 py-3"><div className="text-xs text-slate-600 max-w-[130px] truncate">{eq.companyName}</div></td>
+                      <td className="px-4 py-3"><div className="text-xs text-slate-600">{eq.city}</div><div className="text-xs text-slate-400">{eq.district}</div></td>
+                      <td className="px-4 py-3"><span className="text-xs text-slate-500">{typeConf.label}</span></td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
                           {isOnline ? <Wifi className="w-3 h-3 text-emerald-500" /> : <WifiOff className="w-3 h-3 text-slate-400" />}
@@ -207,26 +215,17 @@ export default function EquipmentPage() {
                           {statusConf.label}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-slate-700 font-medium text-xs">
-                        {sensor?.flowRate !== undefined && sensor.flowRate > 0 ? `${sensor.flowRate.toFixed(1)} L/m` : '-'}
-                      </td>
+                      <td className="px-4 py-3 text-slate-700 font-medium text-xs">{sensor?.flowRate !== undefined && sensor.flowRate > 0 ? `${sensor.flowRate.toFixed(1)} L/m` : '-'}</td>
                       <td className="px-4 py-3 text-xs">
                         {sensor?.outletTds !== undefined ? (
-                          <span className={cn('font-medium', sensor.outletTds > 20 ? 'text-red-600' : 'text-slate-700')}>
-                            {sensor.outletTds} ppm
-                          </span>
+                          <span className={cn('font-medium', sensor.outletTds > 20 ? 'text-red-600' : 'text-slate-700')}>{sensor.outletTds} ppm</span>
                         ) : '-'}
                       </td>
-                      <td className="px-4 py-3 text-slate-700 text-xs font-medium">
-                        {sensor?.dailyVolume ? `${sensor.dailyVolume.toLocaleString('ko-KR')} L` : '-'}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-slate-400">{formatRelativeTime(eq.lastSeen)}</td>
+                      <td className="px-4 py-3 text-slate-700 text-xs font-medium">{sensor?.dailyVolume ? `${sensor.dailyVolume.toLocaleString('ko-KR')} L` : '-'}</td>
+                      <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">{formatRelativeTime(eq.lastSeen)}</td>
                       <td className="px-4 py-3">
-                        <Link
-                          href={`/equipment/${eq.id}/layout-editor`}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-teal-50 hover:border-teal-200 border border-transparent text-xs text-slate-500 hover:text-teal-600 transition-all font-medium whitespace-nowrap"
-                          onClick={e => e.stopPropagation()}
-                        >
+                        <Link href={`/equipment/${eq.id}/layout-editor`} onClick={e => e.stopPropagation()}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-teal-50 border border-transparent text-xs text-slate-500 hover:text-teal-600 transition-all font-medium whitespace-nowrap">
                           <LayoutDashboard className="w-3.5 h-3.5" /> 배치도
                         </Link>
                       </td>
@@ -235,13 +234,14 @@ export default function EquipmentPage() {
                 })}
               </tbody>
             </table>
-            {filtered.length === 0 && (
-              <div className="py-16 text-center text-slate-400">
-                <Search className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <div>검색 결과가 없습니다</div>
-              </div>
-            )}
           </div>
+
+          {filtered.length === 0 && (
+            <div className="py-16 text-center text-slate-400">
+              <Search className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <div>검색 결과가 없습니다</div>
+            </div>
+          )}
           <div className="px-4 py-3 border-t border-slate-100 text-xs text-slate-400 bg-slate-50">
             {filtered.length}개 장비 표시 중
           </div>

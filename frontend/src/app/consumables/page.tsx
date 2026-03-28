@@ -28,7 +28,7 @@ export default function ConsumablesPage() {
   return (
     <DashboardLayout title="소모품 / 재고 관리" subtitle="필터, 소모품 재고 및 교체 현황">
       {/* Summary */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-4 sm:mb-6">
         {[
           { label: '전체 소모품 종류', value: mockConsumables.length, unit: '종', color: 'text-blue-600', bg: 'bg-blue-50' },
           { label: '재고 부족 품목', value: lowStockCount, unit: '종', color: 'text-red-600', bg: 'bg-red-50', urgent: true },
@@ -63,8 +63,8 @@ export default function ConsumablesPage() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex items-center gap-2 sm:gap-3 mb-4">
+        <div className="relative flex-1">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"

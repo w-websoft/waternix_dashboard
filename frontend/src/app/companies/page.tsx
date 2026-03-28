@@ -25,8 +25,8 @@ export default function CompaniesPage() {
   return (
     <DashboardLayout title="업체 관리" subtitle={`총 ${mockCompanies.length}개 업체 등록`}>
       {/* Toolbar */}
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
-        <div className="relative flex-1 min-w-60">
+      <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6 flex-wrap">
+        <div className="relative flex-1 min-w-0 sm:min-w-48">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
