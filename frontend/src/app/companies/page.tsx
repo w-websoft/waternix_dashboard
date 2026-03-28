@@ -1,14 +1,17 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { mockCompanies } from '@/lib/mock-data';
 import { cn, formatDate } from '@/lib/utils';
 import { Search, Plus, Building2, Phone, Mail, MapPin, ChevronRight, Users } from 'lucide-react';
+import AddCompanyModal from '@/components/company/AddCompanyModal';
 
 export default function CompaniesPage() {
   const [search, setSearch] = useState('');
   const [cityFilter, setCityFilter] = useState('all');
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const cities = ['all', ...Array.from(new Set(mockCompanies.map(c => c.city).filter((c): c is string => Boolean(c))))];
 
@@ -49,17 +52,23 @@ export default function CompaniesPage() {
             </button>
           ))}
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+        >
           <Plus className="w-4 h-4" /> 업체 등록
         </button>
       </div>
 
+      <AddCompanyModal open={showAddModal} onClose={() => setShowAddModal(false)} />
+
       {/* Company Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {filtered.map(company => (
-          <div
+          <Link
             key={company.id}
-            className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md hover:border-blue-200 transition-all cursor-pointer group"
+            href={`/companies/${company.id}`}
+            className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md hover:border-blue-200 transition-all cursor-pointer group block"
           >
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -117,7 +126,7 @@ export default function CompaniesPage() {
               </div>
               <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-blue-500 transition-colors" />
             </div>
-          </div>
+          </Link>
         ))}
       </div>
 

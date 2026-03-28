@@ -5,7 +5,8 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { mockMaintenanceRecords } from '@/lib/mock-data';
 import { cn, formatDate } from '@/lib/utils';
 import { MaintenanceStatus, MaintenanceType } from '@/types';
-import { Search, Plus, Wrench, Clock, CheckCircle2, AlertCircle, XCircle, Calendar, User } from 'lucide-react';
+import { Search, Plus, Wrench, Clock, CheckCircle2, XCircle, Calendar, User, Building2 } from 'lucide-react';
+import AddMaintenanceModal from '@/components/maintenance/AddMaintenanceModal';
 
 const STATUS_CONFIG: Record<MaintenanceStatus, { label: string; color: string; bg: string; icon: typeof Wrench }> = {
   scheduled:   { label: '예정',    color: 'text-amber-700',   bg: 'bg-amber-50 border-amber-200',   icon: Calendar },
@@ -25,6 +26,7 @@ export default function MaintenancePage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const filtered = mockMaintenanceRecords.filter(m => {
     const matchSearch = !search || [m.title, m.equipmentName, m.companyName, m.technician]
@@ -92,10 +94,15 @@ export default function MaintenancePage() {
             </button>
           ))}
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+        >
           <Plus className="w-4 h-4" /> 작업 등록
         </button>
       </div>
+
+      <AddMaintenanceModal open={showAddModal} onClose={() => setShowAddModal(false)} />
 
       {/* Cards */}
       <div className="space-y-3">
@@ -143,7 +150,7 @@ export default function MaintenancePage() {
                       <span className="font-medium text-slate-600">{record.equipmentName}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <AlertCircle className="w-3.5 h-3.5 text-slate-400" />
+                      <Building2 className="w-3.5 h-3.5 text-slate-400" />
                       <span>{record.companyName}</span>
                     </div>
                     {record.technician && (

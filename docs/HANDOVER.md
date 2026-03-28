@@ -1,9 +1,39 @@
 # 워터닉스(WATERNIX) IoT 장비 통합 관리 시스템
-## 이관 문서 (Handover Document) v2.0
+## 이관 문서 (Handover Document) v3.0
 
-> **작성일**: 2026-03-28  
+> **작성일**: 2026-03-28 (v3.0 업데이트)  
 > **GitHub**: https://github.com/w-websoft/waternix_dashboard  
-> **상태**: Phase 1 개발 완료 (프론트엔드 UI + 백엔드 스켈레톤 + 통신 서비스)
+> **상태**: Phase 1 완료 + v3.0 버그수정 및 기능추가 (2026-03-28)
+
+---
+
+## ⚡ v3.0 업데이트 내역 (2026-03-28)
+
+### 버그 수정
+
+| 항목 | 원인 | 수정 방법 |
+|------|------|----------|
+| **전국장비 지도 미출력** | `globals.css`에 Leaflet CSS 미포함 | `@import "leaflet/dist/leaflet.css"` 추가 |
+| **업체 클릭 시 상세 이동 불가** | 업체 카드가 `div`로 되어 있어 링크 미적용 | `Link` 컴포넌트로 교체 + 동적 라우트 생성 |
+
+### 신규 파일/컴포넌트
+
+| 파일 | 설명 |
+|------|------|
+| `src/components/company/AddCompanyModal.tsx` | 업체 등록 다단계 폼 모달 (기본정보, 연락처, 소재지, 계약정보) |
+| `src/app/companies/[id]/page.tsx` | 업체 상세 페이지 (4탭: 업체정보/장비/필터/유지보수) |
+| `src/components/maintenance/AddMaintenanceModal.tsx` | 유지보수 작업 등록 모달 (작업유형선택, 장비선택, 일정/비용) |
+| `src/components/consumable/AddInventoryModal.tsx` | 소모품/재고 품목 등록 모달 (분류선택, 재고수량, 단가) |
+
+### 기능 개선
+
+| 화면 | 변경 내용 |
+|------|----------|
+| **업체 관리** `companies/page.tsx` | "업체 등록" 버튼 → `AddCompanyModal` 연동, 카드 클릭 → 상세 페이지 이동 |
+| **유지보수** `maintenance/page.tsx` | "작업 등록" 버튼 → `AddMaintenanceModal` 연동 |
+| **소모품/재고** `consumables/page.tsx` | "품목 등록" 버튼 → `AddInventoryModal` 연동 |
+| **보고서** `reports/page.tsx` | 전체 재설계: 업체 선택 드롭다운으로 회사별 분리 보고서, KPI 요약, 장비 상세 테이블 |
+| **알림 관리** `alerts/page.tsx` | 단계별 처리 시스템 구현: 접수됨→조사중→처리중→완료 (4단계), 담당자 배정, 메모 기록, 진행 바, 이력 확인 |
 
 ---
 
@@ -998,12 +1028,13 @@ docker compose logs -f backend
 |------|------|------|
 | Mock Data | 모든 데이터가 `mock-data.ts` 하드코딩 | Phase 2에서 API 연동으로 교체 |
 | localStorage | 배치도 저장이 브라우저 로컬에만 저장 | 서버 DB 저장으로 전환 필요 |
-| 장비 등록 미반영 | AddEquipmentModal 등록 후 목록에 바로 반영 안됨 | Zustand store 또는 React Query invalidation 구현 필요 |
-| 소모품 등록 미반영 | AddConsumableModal 등록 후 필터 목록에 반영 안됨 | 동일 |
+| 모달 등록 미반영 | AddXxxModal 등록 후 목록 즉시 반영 안됨 | Zustand store 또는 React Query invalidation 구현 필요 |
+| 알림 처리 상태 휘발 | useState 기반이라 새로고침 시 초기화 | 백엔드 API 연동 후 DB 저장 필요 |
 | Nginx 설정 | `docker-compose.yml`에 nginx 포함되나 `nginx/nginx.conf` 파일 미생성 | `nginx/nginx.conf` 파일 별도 작성 필요 |
 | DB 초기화 | `backend/db/init.sql` 미생성 | Alembic 마이그레이션 또는 init.sql 작성 필요 |
 | MQTT TLS | mosquitto.conf에 TLS 주석 처리 | 운영 시 인증서 생성 + 설정 활성화 필요 |
 | Leaflet SSR | `dynamic(..., { ssr: false })` 필수 | 빠뜨리면 `window is not defined` 오류 발생 |
+| 보고서 데이터 | buildCompanyReport 함수가 mock 데이터 기반 추정값 생성 | 백엔드 API 실제 집계 데이터로 교체 필요 |
 
 ---
 
