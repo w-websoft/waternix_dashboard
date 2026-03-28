@@ -205,7 +205,7 @@ async def get_dashboard_summary():
                 "SELECT COUNT(*) FROM filters WHERE status IN ('replace','warning')"
             )
             alerts_unresolved = await conn.fetchval(
-                "SELECT COUNT(*) FROM alerts WHERE resolved_at IS NULL"
+                "SELECT COUNT(*) FROM alerts WHERE process_step != 'completed'"
             )
             volume_row = await conn.fetchrow("""
                 SELECT
