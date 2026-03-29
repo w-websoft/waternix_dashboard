@@ -7,11 +7,13 @@ import type { ConsumablePayload, FilterPayload } from '@/lib/api';
 import { FILTER_STATUS_CONFIG, cn } from '@/lib/utils';
 import { Search, Plus, Package, AlertTriangle, Filter as FilterIcon, RefreshCw } from 'lucide-react';
 import AddInventoryModal from '@/components/consumable/AddInventoryModal';
+import AddConsumableModal from '@/components/equipment/AddConsumableModal';
 
 export default function ConsumablesPage() {
   const [activeTab, setActiveTab] = useState<'consumables' | 'filters'>('consumables');
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showFilterModal, setShowFilterModal] = useState(false);
   const [consumables, setConsumables] = useState<ConsumablePayload[]>([]);
   const [filters, setFilters] = useState<FilterPayload[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,7 +81,7 @@ export default function ConsumablesPage() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex items-center gap-2 sm:gap-3 mb-4">
+      <div className="flex items-center gap-2 sm:gap-3 mb-4 flex-wrap">
         <div className="relative flex-1">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
@@ -94,7 +96,7 @@ export default function ConsumablesPage() {
           <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
         </button>
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={() => activeTab === 'consumables' ? setShowAddModal(true) : setShowFilterModal(true)}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
         >
           <Plus className="w-4 h-4" /> {activeTab === 'consumables' ? '품목 등록' : '필터 등록'}
@@ -104,6 +106,14 @@ export default function ConsumablesPage() {
       <AddInventoryModal
         open={showAddModal}
         onClose={() => setShowAddModal(false)}
+        onSuccess={load}
+      />
+
+      <AddConsumableModal
+        open={showFilterModal}
+        equipmentId=""
+        equipmentName="(직접 등록)"
+        onClose={() => setShowFilterModal(false)}
         onSuccess={load}
       />
 
@@ -125,8 +135,8 @@ export default function ConsumablesPage() {
                   <div className="text-sm">품목 등록 버튼을 눌러 소모품을 추가하세요</div>
                 </div>
               ) : (
-                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                  <table className="w-full text-sm">
+                <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
+                  <table className="w-full text-sm min-w-[800px]">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500">
                         {['품목명', '카테고리', '부품번호', '브랜드', '공급업체', '단위', '재고량', '최소재고', '단가', '상태'].map(h => (

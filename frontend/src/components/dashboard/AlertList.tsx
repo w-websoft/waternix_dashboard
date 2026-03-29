@@ -1,19 +1,23 @@
 'use client';
 
-import { Alert } from '@/types';
+import { AlertPayload } from '@/lib/api';
 import { SEVERITY_CONFIG, formatRelativeTime } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { AlertTriangle, AlertCircle, Info, CheckCircle } from 'lucide-react';
 
 interface AlertListProps {
-  alerts: Alert[];
+  alerts: AlertPayload[];
   maxItems?: number;
 }
 
-const SEVERITY_ICONS = {
+const SEVERITY_ICONS: Record<string, typeof AlertCircle> = {
   critical: AlertCircle,
   warning: AlertTriangle,
   info: Info,
+};
+
+const DEFAULT_SEVERITY_CONFIG = {
+  bg: 'bg-slate-50', border: 'border-slate-200', color: 'text-slate-600', label: '알림',
 };
 
 export default function AlertList({ alerts, maxItems = 8 }: AlertListProps) {
@@ -28,8 +32,8 @@ export default function AlertList({ alerts, maxItems = 8 }: AlertListProps) {
         </div>
       ) : (
         displayed.map((alert) => {
-          const config = SEVERITY_CONFIG[alert.severity];
-          const Icon = SEVERITY_ICONS[alert.severity];
+          const config = SEVERITY_CONFIG[alert.severity as keyof typeof SEVERITY_CONFIG] ?? DEFAULT_SEVERITY_CONFIG;
+          const Icon = SEVERITY_ICONS[alert.severity] ?? Info;
           return (
             <div
               key={alert.id}
@@ -46,8 +50,10 @@ export default function AlertList({ alerts, maxItems = 8 }: AlertListProps) {
                   </span>
                   <span className="font-semibold text-slate-800 truncate">{alert.title}</span>
                 </div>
-                <div className="text-xs text-slate-500 mt-1 truncate">{alert.equipmentName} · {alert.companyName}</div>
-                <div className="text-xs text-slate-400 mt-0.5">{formatRelativeTime(alert.createdAt)}</div>
+                <div className="text-xs text-slate-500 mt-1 truncate">
+                  {alert.equipment_name ?? '장비 없음'} · {alert.company_name ?? ''}
+                </div>
+                <div className="text-xs text-slate-400 mt-0.5">{formatRelativeTime(alert.created_at)}</div>
               </div>
               {alert.acknowledged && (
                 <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />

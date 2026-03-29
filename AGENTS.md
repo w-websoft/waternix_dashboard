@@ -7,8 +7,8 @@
 ## 프로젝트 개요
 
 **프로젝트명**: 워터닉스(WATERNIX) IoT 수처리 장비 통합 관리 시스템  
-**버전**: v3.0.0  
-**상태**: Phase 1 완료 + 서버 배포 완료 (2026-03-28)  
+**버전**: v4.0.0  
+**상태**: 제품 카탈로그 시스템 완성 + 서버 배포 완료 (2026-03-29)  
 **저장소**: https://github.com/w-websoft/waternix_dashboard.git  
 **로컬 경로**: `/Users/wongyun_w/Desktop/water_dashboard`  
 **운영 서버**: https://gwaternix.w-websoftsrv.kr  
@@ -148,17 +148,20 @@ water_dashboard/
 │   └── waternix.mdc
 ├── docs/
 │   └── SYSTEM_DESIGN.md               ← 상세 시스템 설계 문서
+├── PRODUCT_CATALOG_DESIGN.md          ← 제품 카탈로그 시스템 설계 (v4.0 신규)
+├── BACKOFFICE_DESIGN.md               ← 백오피스 시스템 설계
 ├── frontend/                          ← Next.js 16 App
 │   ├── src/
 │   │   ├── app/                       ← 페이지 라우트
 │   │   │   ├── page.tsx               ← 메인 대시보드
 │   │   │   ├── equipment/page.tsx     ← 장비 관리
 │   │   │   ├── companies/page.tsx     ← 업체 관리
+│   │   │   ├── catalog/page.tsx       ← 제품 카탈로그 관리 (v4.0 신규)
 │   │   │   ├── maintenance/page.tsx   ← 유지보수
 │   │   │   ├── consumables/page.tsx   ← 소모품/필터
 │   │   │   ├── alerts/page.tsx        ← 알림 관리
 │   │   │   ├── reports/page.tsx       ← 보고서
-│   │   │   └── settings/page.tsx      ← 시스템 설정
+│   │   │   └── settings/page.tsx      ← 시스템 설정 (DB 연동 v4.0)
 │   │   ├── components/
 │   │   │   ├── layout/                ← Sidebar, Header, DashboardLayout
 │   │   │   ├── map/                   ← EquipmentMap (Leaflet)
@@ -175,8 +178,16 @@ water_dashboard/
 │   │   ├── main.py                    ← FastAPI + Socket.IO 앱 진입점
 │   │   ├── core/config.py             ← pydantic-settings 환경설정
 │   │   ├── api/
+│   │   │   ├── auth.py                ← 인증 API (users 테이블 기반, JWT)
 │   │   │   ├── equipment.py           ← 장비 REST API
-│   │   │   └── companies.py           ← 업체 REST API
+│   │   │   ├── equipment_catalog.py   ← 워터닉스 장비 카탈로그 API (v4.0 신규)
+│   │   │   ├── companies.py           ← 업체 REST API
+│   │   │   ├── catalog.py             ← 소모품 카탈로그 API
+│   │   │   ├── filters.py             ← 소모품/필터 관리 API
+│   │   │   ├── maintenance.py         ← 유지보수 API
+│   │   │   ├── alerts.py              ← 알림 API
+│   │   │   ├── consumables.py         ← 재고 관리 API
+│   │   │   └── system_settings.py     ← 시스템 설정 DB 저장 API (v4.0 신규)
 │   │   ├── models/schemas.py          ← Pydantic v2 스키마 (모든 모델)
 │   │   └── services/communication/
 │   │       ├── __init__.py
@@ -201,8 +212,25 @@ water_dashboard/
 - `comm_config`: JSONB (IP, port, slave_id 등 통신 설정)
 
 ### EquipmentType
-- `ro` (역삼투압), `di` (초순수), `seawater` (해수담수화)
-- `prefilter` (전처리), `uv` (UV살균), `softener` (연수기), `booster` (부스터펌프)
+- `ro` (역삼투압/WRO), `cooling` (냉각수/DCRO), `di` (초순수/WDI), `seawater` (해수담수화/WSRO)
+- `uf` (양액회수/WUF), `small` (소형/T05·T20), `prefilter` (전처리), `uv` (UV살균/WUV)
+- `softener` (연수/WSF), `filtration` (여과), `booster` (부스터펌프)
+
+### EquipmentCatalog (워터닉스 자사 제품 카탈로그) [v4.0 신규]
+- `model_code` (DCRO-500), `model_name`, `equipment_type`, `series`, `category`
+- `specs` (JSONB: capacity_lph, voltage, power_kw...), `default_consumables` (JSONB)
+- `warranty_months`, `sell_price`, `cost_price`, `lead_time_days`
+- **현재 등록**: 20개 모델 (DCRO 4, WRO 4, WDI 2, WSRO 2, WUF 2, T 2, WUV 2, WSF 2)
+
+### ConsumableCatalog (소모품/부품 카탈로그)
+- `part_no` (DCRO-SD-5), `name`, `category` (filter/membrane/chemical/pump/sensor)
+- `equipment_type`, `replace_interval_hours`, `sell_price`, `cost_price`
+- **현재 등록**: 89개 소모품 (각 제품 시리즈별)
+
+### SystemSettings (시스템 설정 DB) [v4.0 신규]
+- key-value 구조로 시스템 설정값 DB 저장
+- 재배포 없이 관리자가 설정 변경 가능
+- **현재 키**: company_name, collect_interval_sec, alert_tds_warn, alert_filter_warn 등
 
 ### SensorData (시계열, TimescaleDB)
 - `flow_rate` (L/min), `daily_volume` (L), `inlet/outlet_pressure` (bar)
@@ -275,24 +303,62 @@ docker-compose up -d
 
 ---
 
+## v4.0 주요 변경사항 (2026-03-29)
+
+### 신규 기능
+- **제품 카탈로그 시스템** (`/catalog` 페이지)
+  - 장비 카탈로그 탭: 워터닉스 자사 제품 20개 등록/수정/삭제
+  - 소모품 카탈로그 탭: 89개 소모품 전체 CRUD
+  - 기본 데이터 자동 시딩 버튼 (처음 실행 시)
+- **카탈로그 연동 장비 등록**
+  - 장비 등록 시 equipment_catalog에서 모델 선택
+  - 선택한 모델의 default_consumables 자동 필터 등록
+  - 카탈로그 없으면 기존 하드코딩 목록 fallback
+- **인증 시스템 DB 연동**
+  - users 테이블 기반 로그인 (bcrypt 검증)
+  - config 관리자 계정 fallback 유지
+  - 사용자 추가/비활성화 API
+  - 비밀번호 변경 API
+- **시스템 설정 DB 저장**
+  - system_settings 테이블 (key-value)
+  - 설정 페이지에서 저장 시 즉시 DB 반영
+- **사이드바 카탈로그 메뉴 추가**
+
+### DB 마이그레이션
+- `002_equipment_catalog.sql`: equipment_catalog, system_settings 테이블 생성
+- filters 테이블: replace_interval_days, last_replaced_date, catalog_part_no 컬럼 추가
+- equipment 테이블: catalog_model_code, purchase_price, install_by 컬럼 추가
+
+### API 추가
+- `GET/POST/PUT/DELETE /api/equipment-catalog` — 장비 카탈로그 CRUD
+- `POST /api/equipment-catalog/seed` — 기본 20개 제품 시딩
+- `GET/PATCH /api/settings` — 시스템 설정 조회/저장
+- `GET/POST/PATCH/DELETE /api/auth/users` — 사용자 관리
+- `POST /api/auth/change-password` — 비밀번호 변경
+
+---
+
 ## 알려진 이슈 및 TODO
 
-### Phase 1 완료
-- [x] 전체 프론트엔드 UI (8개 페이지)
+### 완료된 주요 기능
+- [x] 전체 프론트엔드 UI (9개 페이지: 대시보드, 장비, 업체, 카탈로그, 유지보수, 소모품, 보고서, 알림, 설정)
 - [x] Leaflet 지도 (전국 장비 표시)
-- [x] FastAPI 백엔드 구조
-- [x] 통신 레이어 (Modbus, MQTT, Serial)
-- [x] Docker Compose 설정
-- [x] 시스템 설계 문서
+- [x] FastAPI 백엔드 전체 API
+- [x] PostgreSQL + TimescaleDB 연동
+- [x] JWT 인증 (DB users 테이블 기반)
+- [x] Docker Compose 배포
+- [x] Nginx 리버스 프록시 (aaPanel)
+- [x] 제품 카탈로그 시스템
+- [x] 소모품 카탈로그 + 자동 등록
+- [x] 시스템 설정 DB 저장
 
-### Phase 2 예정
-- [ ] DB 연동 (현재 mock-data 사용, SQLAlchemy 쿼리 구현 필요)
-- [ ] 실제 MQTT 수신 → TimescaleDB 저장
-- [ ] JWT 인증 시스템
-- [ ] Celery 알림 발송 (SMS, 이메일)
-- [ ] 장비 상세 페이지 (실시간 그래프)
-- [ ] 모바일 반응형 최적화
-- [ ] 카카오맵 API 연동 (현재 OpenStreetMap)
+### 다음 개발 항목 (Phase 2)
+- [ ] 장비 카탈로그에 제품 이미지 업로드 기능
+- [ ] 실제 MQTT/Modbus 데이터 수신 → TimescaleDB 저장
+- [ ] 실시간 장비 상태 Socket.io 연동
+- [ ] 소모품 주문/발주 시스템
+- [ ] 모델별 설치 현황 통계 (카탈로그 → 실제 설치 대수)
+- [ ] SMS/이메일 알림 발송 (Celery)
 
 ---
 

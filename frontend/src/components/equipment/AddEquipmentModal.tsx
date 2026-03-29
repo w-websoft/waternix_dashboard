@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, ChevronRight, ChevronLeft, Check, Cpu, MapPin, Wifi, Package, Loader2 } from 'lucide-react';
+import { X, ChevronRight, ChevronLeft, Check, Cpu, MapPin, Wifi, Package, Loader2, Box } from 'lucide-react';
 import { EquipmentType, CommType } from '@/types';
 import { cn } from '@/lib/utils';
-import { equipmentApi, companiesApi } from '@/lib/api';
+import { equipmentApi, companiesApi, filtersApi, equipmentCatalogApi, EquipmentCatalogItem } from '@/lib/api';
 
 interface Company {
   id: string;
@@ -14,57 +14,398 @@ interface Company {
   contact?: string;
 }
 
-const WATERNIX_MODELS: Record<EquipmentType, { model: string; label: string; capacity: string }[]> = {
+export interface WaternixModel {
+  model: string;
+  label: string;
+  capacity: string;
+  consumables?: { name: string; partNo?: string; unit: string; replaceIntervalHours?: number }[];
+}
+
+export const WATERNIX_MODELS: Record<EquipmentType, WaternixModel[]> = {
+  cooling: [
+    {
+      model: 'DCRO-T50', label: '냉각수 스케일제거 50L/h', capacity: '50',
+      consumables: [
+        { name: '세디먼트 필터 5㎛', partNo: 'DCRO-SD-5', unit: '개', replaceIntervalHours: 2000 },
+        { name: '활성탄 필터', partNo: 'DCRO-AC', unit: '개', replaceIntervalHours: 4000 },
+        { name: 'RO 멤브레인 (NF)', partNo: 'DCRO-MEM-NF', unit: '개', replaceIntervalHours: 8760 },
+        { name: '스케일 방지제 (Antiscalant)', partNo: 'DCRO-ANT', unit: 'L', replaceIntervalHours: 720 },
+        { name: '고압펌프 씰 키트', partNo: 'DCRO-SEAL', unit: 'set', replaceIntervalHours: 8760 },
+      ],
+    },
+    {
+      model: 'DCRO-T100', label: '냉각수 스케일제거 100L/h', capacity: '100',
+      consumables: [
+        { name: '세디먼트 필터 5㎛', partNo: 'DCRO-SD-5', unit: '개', replaceIntervalHours: 2000 },
+        { name: '활성탄 필터', partNo: 'DCRO-AC', unit: '개', replaceIntervalHours: 4000 },
+        { name: 'RO 멤브레인 (NF)', partNo: 'DCRO-MEM-NF', unit: '개', replaceIntervalHours: 8760 },
+        { name: '스케일 방지제 (Antiscalant)', partNo: 'DCRO-ANT', unit: 'L', replaceIntervalHours: 720 },
+        { name: '고압펌프 씰 키트', partNo: 'DCRO-SEAL', unit: 'set', replaceIntervalHours: 8760 },
+      ],
+    },
+    {
+      model: 'DCRO-T500', label: '냉각수 스케일제거 500L/h', capacity: '500',
+      consumables: [
+        { name: '세디먼트 필터 5㎛', partNo: 'DCRO-SD-5-L', unit: '개', replaceIntervalHours: 1500 },
+        { name: '활성탄 필터', partNo: 'DCRO-AC-L', unit: '개', replaceIntervalHours: 3000 },
+        { name: 'RO 멤브레인 (NF) 4인치', partNo: 'DCRO-MEM-NF4', unit: '개', replaceIntervalHours: 8760 },
+        { name: '스케일 방지제 (Antiscalant)', partNo: 'DCRO-ANT-20L', unit: 'L', replaceIntervalHours: 360 },
+        { name: '고압펌프 씰 키트', partNo: 'DCRO-SEAL-L', unit: 'set', replaceIntervalHours: 8760 },
+      ],
+    },
+    {
+      model: 'DCRO-T1000', label: '냉각수 스케일제거 1,000L/h', capacity: '1000',
+      consumables: [
+        { name: 'RO 멤브레인 (NF) 4인치', partNo: 'DCRO-MEM-NF4', unit: '개', replaceIntervalHours: 8760 },
+        { name: '스케일 방지제 (Antiscalant)', partNo: 'DCRO-ANT-20L', unit: 'L', replaceIntervalHours: 360 },
+        { name: '고압펌프 씰 키트', partNo: 'DCRO-SEAL-L', unit: 'set', replaceIntervalHours: 8760 },
+        { name: 'FRP 압력탱크 멀티미디어 충진재', partNo: 'DCRO-FRP-MEDIA', unit: 'kg', replaceIntervalHours: 26280 },
+      ],
+    },
+    {
+      model: 'DCRO-T5000', label: '냉각수 스케일제거 5,000L/h', capacity: '5000',
+      consumables: [
+        { name: 'RO 멤브레인 (NF) 8인치', partNo: 'DCRO-MEM-NF8', unit: '개', replaceIntervalHours: 8760 },
+        { name: '스케일 방지제 (Antiscalant)', partNo: 'DCRO-ANT-200L', unit: 'L', replaceIntervalHours: 360 },
+        { name: '고압펌프 씰 키트 (대형)', partNo: 'DCRO-SEAL-XL', unit: 'set', replaceIntervalHours: 8760 },
+      ],
+    },
+    {
+      model: 'DCRO-T10000', label: '냉각수 스케일제거 10,000L/h', capacity: '10000',
+      consumables: [
+        { name: 'RO 멤브레인 (NF) 8인치', partNo: 'DCRO-MEM-NF8', unit: '개', replaceIntervalHours: 8760 },
+        { name: '스케일 방지제 (Antiscalant)', partNo: 'DCRO-ANT-200L', unit: 'L', replaceIntervalHours: 360 },
+        { name: '고압펌프 씰 키트 (대형)', partNo: 'DCRO-SEAL-XL', unit: 'set', replaceIntervalHours: 8760 },
+      ],
+    },
+  ],
   ro: [
-    { model: 'WRO-T10', label: '역삼투압 정수기 10LPH', capacity: '10' },
-    { model: 'WRO-T30', label: '역삼투압 정수기 30LPH', capacity: '30' },
-    { model: 'WRO-T100', label: '역삼투압 시스템 100LPH', capacity: '100' },
-    { model: 'WRO-T500', label: '역삼투압 시스템 500LPH', capacity: '500' },
-    { model: 'WRO-T1000', label: '역삼투압 시스템 1000LPH', capacity: '1000' },
-    { model: 'WRO-T5000', label: '산업용 RO 5000LPH', capacity: '5000' },
+    {
+      model: 'WRO-T50', label: '역삼투압 시스템 50L/h', capacity: '50',
+      consumables: [
+        { name: '세디먼트 필터 5㎛', partNo: 'WRO-SD-5', unit: '개', replaceIntervalHours: 2000 },
+        { name: '활성탄 블록 필터 (CTO)', partNo: 'WRO-CTO', unit: '개', replaceIntervalHours: 4000 },
+        { name: 'RO 멤브레인', partNo: 'WRO-MEM-50', unit: '개', replaceIntervalHours: 8760 },
+        { name: '후처리 인라인 필터', partNo: 'WRO-POST', unit: '개', replaceIntervalHours: 6000 },
+      ],
+    },
+    {
+      model: 'WRO-T100', label: '역삼투압 시스템 100L/h', capacity: '100',
+      consumables: [
+        { name: '세디먼트 필터 5㎛', partNo: 'WRO-SD-5', unit: '개', replaceIntervalHours: 2000 },
+        { name: '활성탄 블록 필터 (CTO)', partNo: 'WRO-CTO', unit: '개', replaceIntervalHours: 4000 },
+        { name: 'RO 멤브레인 4인치', partNo: 'WRO-MEM-100', unit: '개', replaceIntervalHours: 8760 },
+        { name: '고압펌프 씰 키트', partNo: 'WRO-SEAL', unit: 'set', replaceIntervalHours: 8760 },
+      ],
+    },
+    {
+      model: 'WRO-T500', label: '역삼투압 시스템 500L/h', capacity: '500',
+      consumables: [
+        { name: '세디먼트 필터 5㎛ (대형)', partNo: 'WRO-SD-5-L', unit: '개', replaceIntervalHours: 1500 },
+        { name: 'RO 멤브레인 4인치', partNo: 'WRO-MEM-4', unit: '개', replaceIntervalHours: 8760 },
+        { name: '스케일 방지제', partNo: 'WRO-ANT', unit: 'L', replaceIntervalHours: 720 },
+        { name: '고압펌프 씰 키트', partNo: 'WRO-SEAL', unit: 'set', replaceIntervalHours: 8760 },
+      ],
+    },
+    {
+      model: 'WRO-T1000', label: '역삼투압 시스템 1,000L/h', capacity: '1000',
+      consumables: [
+        { name: 'RO 멤브레인 4인치', partNo: 'WRO-MEM-4', unit: '개', replaceIntervalHours: 8760 },
+        { name: '스케일 방지제 (20L)', partNo: 'WRO-ANT-20', unit: 'L', replaceIntervalHours: 360 },
+        { name: '고압펌프 씰 키트', partNo: 'WRO-SEAL-L', unit: 'set', replaceIntervalHours: 8760 },
+        { name: '전처리 멀티미디어 필터 충진재', partNo: 'WRO-MEDIA', unit: 'kg', replaceIntervalHours: 26280 },
+      ],
+    },
+    {
+      model: 'WRO-T5000', label: '역삼투압 시스템 5,000L/h', capacity: '5000',
+      consumables: [
+        { name: 'RO 멤브레인 8인치', partNo: 'WRO-MEM-8', unit: '개', replaceIntervalHours: 8760 },
+        { name: '스케일 방지제 (200L)', partNo: 'WRO-ANT-200', unit: 'L', replaceIntervalHours: 360 },
+        { name: '고압펌프 씰 키트 (대형)', partNo: 'WRO-SEAL-XL', unit: 'set', replaceIntervalHours: 8760 },
+      ],
+    },
+    {
+      model: 'WRO-T10000', label: '역삼투압 시스템 10,000L/h', capacity: '10000',
+      consumables: [
+        { name: 'RO 멤브레인 8인치', partNo: 'WRO-MEM-8', unit: '개', replaceIntervalHours: 8760 },
+        { name: '스케일 방지제 (200L)', partNo: 'WRO-ANT-200', unit: 'L', replaceIntervalHours: 360 },
+        { name: '고압펌프 씰 키트 (대형)', partNo: 'WRO-SEAL-XL', unit: 'set', replaceIntervalHours: 8760 },
+      ],
+    },
   ],
   di: [
-    { model: 'WDI-T30', label: '이온교환 순수기 30LPH', capacity: '30' },
-    { model: 'WDI-T100', label: '이온교환 순수기 100LPH', capacity: '100' },
-    { model: 'WDI-T500', label: '초순수 제조기 500LPH', capacity: '500' },
-    { model: 'WDI-T1000', label: '초순수 제조기 1000LPH', capacity: '1000' },
-    { model: 'WDI-T2000', label: '산업용 DI 2000LPH', capacity: '2000' },
+    {
+      model: 'WDI-T50', label: '초순수 시스템 50L/h', capacity: '50',
+      consumables: [
+        { name: 'RO 멤브레인', partNo: 'WDI-MEM', unit: '개', replaceIntervalHours: 8760 },
+        { name: '혼합 이온교환 수지 (MB)', partNo: 'WDI-RESIN-MB', unit: 'L', replaceIntervalHours: 4380 },
+        { name: '양이온 수지 (C-Type)', partNo: 'WDI-RESIN-C', unit: 'L', replaceIntervalHours: 8760 },
+        { name: '음이온 수지 (A-Type)', partNo: 'WDI-RESIN-A', unit: 'L', replaceIntervalHours: 8760 },
+      ],
+    },
+    {
+      model: 'WDI-T100', label: '초순수 시스템 100L/h', capacity: '100',
+      consumables: [
+        { name: 'RO 멤브레인 4인치', partNo: 'WDI-MEM-4', unit: '개', replaceIntervalHours: 8760 },
+        { name: '혼합 이온교환 수지 (MB)', partNo: 'WDI-RESIN-MB', unit: 'L', replaceIntervalHours: 4380 },
+        { name: '양이온 수지 (C-Type)', partNo: 'WDI-RESIN-C', unit: 'L', replaceIntervalHours: 8760 },
+        { name: '음이온 수지 (A-Type)', partNo: 'WDI-RESIN-A', unit: 'L', replaceIntervalHours: 8760 },
+      ],
+    },
+    {
+      model: 'WDI-T500', label: '초순수 시스템 500L/h', capacity: '500',
+      consumables: [
+        { name: 'RO 멤브레인 4인치', partNo: 'WDI-MEM-4', unit: '개', replaceIntervalHours: 8760 },
+        { name: '혼합 이온교환 수지 (MB) 25L', partNo: 'WDI-RESIN-MB-25', unit: 'L', replaceIntervalHours: 4380 },
+        { name: '양이온 수지 50L', partNo: 'WDI-RESIN-C-50', unit: 'L', replaceIntervalHours: 8760 },
+        { name: '음이온 수지 50L', partNo: 'WDI-RESIN-A-50', unit: 'L', replaceIntervalHours: 8760 },
+      ],
+    },
+    {
+      model: 'WDI-T1000', label: '초순수 시스템 1,000L/h', capacity: '1000',
+      consumables: [
+        { name: 'RO 멤브레인 4인치', partNo: 'WDI-MEM-4', unit: '개', replaceIntervalHours: 8760 },
+        { name: '혼합 이온교환 수지 (MB) 50L', partNo: 'WDI-RESIN-MB-50', unit: 'L', replaceIntervalHours: 4380 },
+      ],
+    },
+    {
+      model: 'WDI-T5000', label: '초순수 시스템 5,000L/h', capacity: '5000',
+      consumables: [
+        { name: 'RO 멤브레인 8인치', partNo: 'WDI-MEM-8', unit: '개', replaceIntervalHours: 8760 },
+        { name: '혼합 이온교환 수지 (MB) 200L', partNo: 'WDI-RESIN-MB-200', unit: 'L', replaceIntervalHours: 4380 },
+      ],
+    },
+    {
+      model: 'WDI-T10000', label: '초순수 시스템 10,000L/h', capacity: '10000',
+      consumables: [
+        { name: 'RO 멤브레인 8인치', partNo: 'WDI-MEM-8', unit: '개', replaceIntervalHours: 8760 },
+        { name: '혼합 이온교환 수지 (MB) 500L', partNo: 'WDI-RESIN-MB-500', unit: 'L', replaceIntervalHours: 4380 },
+      ],
+    },
   ],
   seawater: [
-    { model: 'WSRO-T500', label: '해수담수화 500LPH', capacity: '500' },
-    { model: 'WSRO-T2000', label: '해수담수화 2000LPH', capacity: '2000' },
-    { model: 'WSRO-T10000', label: '해수담수화 10000LPH', capacity: '10000' },
+    {
+      model: 'WSRO-T50', label: '해수담수화 시스템 50L/h', capacity: '50',
+      consumables: [
+        { name: 'SWRO 멤브레인 4인치', partNo: 'WSRO-MEM-4', unit: '개', replaceIntervalHours: 8760 },
+        { name: '스케일 방지제', partNo: 'WSRO-ANT', unit: 'L', replaceIntervalHours: 720 },
+        { name: '고압펌프 씰 키트', partNo: 'WSRO-SEAL', unit: 'set', replaceIntervalHours: 8760 },
+        { name: '세디먼트 5㎛', partNo: 'WSRO-SD', unit: '개', replaceIntervalHours: 1000 },
+      ],
+    },
+    {
+      model: 'WSRO-T100', label: '해수담수화 시스템 100L/h', capacity: '100',
+      consumables: [
+        { name: 'SWRO 멤브레인 4인치', partNo: 'WSRO-MEM-4', unit: '개', replaceIntervalHours: 8760 },
+        { name: '스케일 방지제', partNo: 'WSRO-ANT', unit: 'L', replaceIntervalHours: 720 },
+        { name: '고압펌프 씰 키트', partNo: 'WSRO-SEAL', unit: 'set', replaceIntervalHours: 8760 },
+        { name: '세디먼트 5㎛', partNo: 'WSRO-SD', unit: '개', replaceIntervalHours: 1000 },
+      ],
+    },
+    {
+      model: 'WSRO-T500', label: '해수담수화 시스템 500L/h', capacity: '500',
+      consumables: [
+        { name: 'SWRO 멤브레인 4인치', partNo: 'WSRO-MEM-4', unit: '개', replaceIntervalHours: 8760 },
+        { name: '스케일 방지제 (20L)', partNo: 'WSRO-ANT-20', unit: 'L', replaceIntervalHours: 360 },
+        { name: '고압펌프 씰 키트', partNo: 'WSRO-SEAL-L', unit: 'set', replaceIntervalHours: 8760 },
+      ],
+    },
+    {
+      model: 'WSRO-T1000', label: '해수담수화 시스템 1,000L/h', capacity: '1000',
+      consumables: [
+        { name: 'SWRO 멤브레인 4인치', partNo: 'WSRO-MEM-4', unit: '개', replaceIntervalHours: 8760 },
+        { name: '스케일 방지제 (20L)', partNo: 'WSRO-ANT-20', unit: 'L', replaceIntervalHours: 360 },
+        { name: '고압펌프 씰 키트', partNo: 'WSRO-SEAL-L', unit: 'set', replaceIntervalHours: 8760 },
+      ],
+    },
+    {
+      model: 'WSRO-T5000', label: '해수담수화 시스템 5,000L/h', capacity: '5000',
+      consumables: [
+        { name: 'SWRO 멤브레인 8인치', partNo: 'WSRO-MEM-8', unit: '개', replaceIntervalHours: 8760 },
+        { name: '스케일 방지제 (200L)', partNo: 'WSRO-ANT-200', unit: 'L', replaceIntervalHours: 360 },
+        { name: '고압펌프 씰 키트 (대형)', partNo: 'WSRO-SEAL-XL', unit: 'set', replaceIntervalHours: 8760 },
+      ],
+    },
+    {
+      model: 'WSRO-T10000', label: '해수담수화 시스템 10,000L/h', capacity: '10000',
+      consumables: [
+        { name: 'SWRO 멤브레인 8인치', partNo: 'WSRO-MEM-8', unit: '개', replaceIntervalHours: 8760 },
+        { name: '스케일 방지제 (200L)', partNo: 'WSRO-ANT-200', unit: 'L', replaceIntervalHours: 360 },
+        { name: '고압펌프 씰 키트 (대형)', partNo: 'WSRO-SEAL-XL', unit: 'set', replaceIntervalHours: 8760 },
+      ],
+    },
+  ],
+  uf: [
+    {
+      model: 'WUF-T50', label: '양액회수·재생 시스템 50L/h', capacity: '50',
+      consumables: [
+        { name: 'UF 중공사 멤브레인', partNo: 'WUF-MEM-HF', unit: '개', replaceIntervalHours: 17520 },
+        { name: 'UF 세정제 (Alkaline)', partNo: 'WUF-CLEAN-ALK', unit: 'kg', replaceIntervalHours: 168 },
+        { name: 'UF 세정제 (Acid)', partNo: 'WUF-CLEAN-ACD', unit: 'kg', replaceIntervalHours: 168 },
+        { name: 'UV 램프', partNo: 'WUF-UV-LAMP', unit: '개', replaceIntervalHours: 8000 },
+      ],
+    },
+    {
+      model: 'WUF-T100', label: '양액회수·재생 시스템 100L/h', capacity: '100',
+      consumables: [
+        { name: 'UF 중공사 멤브레인', partNo: 'WUF-MEM-HF-L', unit: '개', replaceIntervalHours: 17520 },
+        { name: 'UF 세정제 (Alkaline)', partNo: 'WUF-CLEAN-ALK', unit: 'kg', replaceIntervalHours: 168 },
+        { name: 'UF 세정제 (Acid)', partNo: 'WUF-CLEAN-ACD', unit: 'kg', replaceIntervalHours: 168 },
+        { name: 'UV 램프', partNo: 'WUF-UV-LAMP', unit: '개', replaceIntervalHours: 8000 },
+      ],
+    },
+  ],
+  small: [
+    {
+      model: 'T05', label: '소형 정수 시스템 (20L/h)', capacity: '20',
+      consumables: [
+        { name: '세디먼트 필터', partNo: 'T05-SD', unit: '개', replaceIntervalHours: 2000 },
+        { name: '활성탄 필터 (CTO)', partNo: 'T05-CTO', unit: '개', replaceIntervalHours: 4000 },
+        { name: 'RO 멤브레인 (소형)', partNo: 'T05-MEM', unit: '개', replaceIntervalHours: 8760 },
+        { name: '후처리 인라인 필터', partNo: 'T05-POST', unit: '개', replaceIntervalHours: 6000 },
+      ],
+    },
+    {
+      model: 'T20', label: '소형 정수 시스템 (T20)', capacity: '0',
+      consumables: [
+        { name: '세디먼트 필터', partNo: 'T20-SD', unit: '개', replaceIntervalHours: 2000 },
+        { name: '활성탄 필터 (CTO)', partNo: 'T20-CTO', unit: '개', replaceIntervalHours: 4000 },
+        { name: 'RO 멤브레인 (소형)', partNo: 'T20-MEM', unit: '개', replaceIntervalHours: 8760 },
+      ],
+    },
   ],
   prefilter: [
-    { model: 'WPF-SD', label: '세디먼트 전처리 필터', capacity: '0' },
-    { model: 'WPF-AC', label: '활성탄 전처리 필터', capacity: '0' },
-    { model: 'WPF-MM', label: '멀티미디어 여과기', capacity: '0' },
+    {
+      model: 'WPF-SD', label: '세디먼트 전처리 필터', capacity: '0',
+      consumables: [
+        { name: '세디먼트 카트리지 5㎛', partNo: 'WPF-SD-5', unit: '개', replaceIntervalHours: 2000 },
+        { name: '세디먼트 카트리지 1㎛', partNo: 'WPF-SD-1', unit: '개', replaceIntervalHours: 1000 },
+      ],
+    },
+    {
+      model: 'WPF-AC', label: '활성탄 전처리 필터', capacity: '0',
+      consumables: [
+        { name: '활성탄 블록 카트리지 (CTO)', partNo: 'WPF-AC-CTO', unit: '개', replaceIntervalHours: 4000 },
+        { name: '입상 활성탄 (GAC)', partNo: 'WPF-AC-GAC', unit: 'kg', replaceIntervalHours: 8760 },
+      ],
+    },
+    {
+      model: 'WPF-MM', label: '멀티미디어 여과기', capacity: '0',
+      consumables: [
+        { name: '안트라사이트 (Anthracite)', partNo: 'WPF-MM-ANT', unit: 'kg', replaceIntervalHours: 26280 },
+        { name: '샌드 (Filter Sand)', partNo: 'WPF-MM-SAND', unit: 'kg', replaceIntervalHours: 26280 },
+        { name: '그라벨 (Gravel)', partNo: 'WPF-MM-GRV', unit: 'kg', replaceIntervalHours: 52560 },
+      ],
+    },
   ],
   uv: [
-    { model: 'WUV-T10', label: 'UV 살균기 10LPM', capacity: '10' },
-    { model: 'WUV-T30', label: 'UV 살균기 30LPM', capacity: '30' },
-    { model: 'WUV-T100', label: 'UV 살균기 100LPM', capacity: '100' },
+    {
+      model: 'WUV-T10', label: 'UV살균 시스템 10LPM', capacity: '10',
+      consumables: [
+        { name: 'UV 살균 램프 (T10)', partNo: 'WUV-LAMP-10', unit: '개', replaceIntervalHours: 8000 },
+        { name: '석영 슬리브 (Quartz Sleeve)', partNo: 'WUV-QS-10', unit: '개', replaceIntervalHours: 17520 },
+      ],
+    },
+    {
+      model: 'WUV-T30', label: 'UV살균 시스템 30LPM', capacity: '30',
+      consumables: [
+        { name: 'UV 살균 램프 (T30)', partNo: 'WUV-LAMP-30', unit: '개', replaceIntervalHours: 8000 },
+        { name: '석영 슬리브 (Quartz Sleeve)', partNo: 'WUV-QS-30', unit: '개', replaceIntervalHours: 17520 },
+      ],
+    },
+    {
+      model: 'WUV-T100', label: 'UV살균 시스템 100LPM', capacity: '100',
+      consumables: [
+        { name: 'UV 살균 램프 (T100)', partNo: 'WUV-LAMP-100', unit: '개', replaceIntervalHours: 8000 },
+        { name: '석영 슬리브 (Quartz Sleeve)', partNo: 'WUV-QS-100', unit: '개', replaceIntervalHours: 17520 },
+        { name: 'UV 컨트롤러 보드', partNo: 'WUV-CTRL', unit: '개', replaceIntervalHours: 35040 },
+      ],
+    },
   ],
   softener: [
-    { model: 'WSF-T100', label: '연수기 100LPH', capacity: '100' },
-    { model: 'WSF-T500', label: '연수기 500LPH', capacity: '500' },
-    { model: 'WSF-T2000', label: '산업용 연수기 2000LPH', capacity: '2000' },
+    {
+      model: 'WSF-T100', label: '연수 시스템 100L/h', capacity: '100',
+      consumables: [
+        { name: '양이온 교환 수지 (Na형)', partNo: 'WSF-RESIN-NA', unit: 'L', replaceIntervalHours: 17520 },
+        { name: '재생용 소금 (NaCl)', partNo: 'WSF-SALT', unit: 'kg', replaceIntervalHours: 720 },
+      ],
+    },
+    {
+      model: 'WSF-T500', label: '연수 시스템 500L/h', capacity: '500',
+      consumables: [
+        { name: '양이온 교환 수지 (Na형) 50L', partNo: 'WSF-RESIN-NA-50', unit: 'L', replaceIntervalHours: 17520 },
+        { name: '재생용 소금 (NaCl) 25kg', partNo: 'WSF-SALT-25', unit: 'kg', replaceIntervalHours: 360 },
+      ],
+    },
+    {
+      model: 'WSF-T2000', label: '연수 시스템 2,000L/h', capacity: '2000',
+      consumables: [
+        { name: '양이온 교환 수지 (Na형) 200L', partNo: 'WSF-RESIN-NA-200', unit: 'L', replaceIntervalHours: 17520 },
+        { name: '재생용 소금 (NaCl) 25kg', partNo: 'WSF-SALT-25', unit: 'kg', replaceIntervalHours: 168 },
+      ],
+    },
+  ],
+  filtration: [
+    {
+      model: 'WFF-T100', label: '여과 시스템 100L/h', capacity: '100',
+      consumables: [
+        { name: '안트라사이트 여과재', partNo: 'WFF-ANT', unit: 'kg', replaceIntervalHours: 26280 },
+        { name: '샌드 여과재', partNo: 'WFF-SAND', unit: 'kg', replaceIntervalHours: 26280 },
+        { name: '역세척 보조제', partNo: 'WFF-BWA', unit: 'L', replaceIntervalHours: 8760 },
+      ],
+    },
+    {
+      model: 'WFF-T500', label: '여과 시스템 500L/h', capacity: '500',
+      consumables: [
+        { name: '안트라사이트 여과재 50kg', partNo: 'WFF-ANT-50', unit: 'kg', replaceIntervalHours: 26280 },
+        { name: '샌드 여과재 50kg', partNo: 'WFF-SAND-50', unit: 'kg', replaceIntervalHours: 26280 },
+      ],
+    },
+    {
+      model: 'WFF-T2000', label: '여과 시스템 2,000L/h', capacity: '2000',
+      consumables: [
+        { name: '안트라사이트 여과재 200kg', partNo: 'WFF-ANT-200', unit: 'kg', replaceIntervalHours: 26280 },
+        { name: '샌드 여과재 200kg', partNo: 'WFF-SAND-200', unit: 'kg', replaceIntervalHours: 26280 },
+      ],
+    },
   ],
   booster: [
-    { model: 'WBP-T30', label: '부스터 펌프 30LPM', capacity: '30' },
-    { model: 'WBP-T100', label: '부스터 펌프 100LPM', capacity: '100' },
-    { model: 'WBP-T500', label: '산업용 부스터 펌프 500LPM', capacity: '500' },
+    {
+      model: 'WBP-T30', label: '부스터 펌프 30LPM', capacity: '30',
+      consumables: [
+        { name: '임펠러 씰 키트', partNo: 'WBP-SEAL-30', unit: 'set', replaceIntervalHours: 8760 },
+        { name: '커플링', partNo: 'WBP-COUPLING', unit: '개', replaceIntervalHours: 17520 },
+      ],
+    },
+    {
+      model: 'WBP-T100', label: '부스터 펌프 100LPM', capacity: '100',
+      consumables: [
+        { name: '임펠러 씰 키트', partNo: 'WBP-SEAL-100', unit: 'set', replaceIntervalHours: 8760 },
+        { name: '베어링 세트', partNo: 'WBP-BEARING', unit: 'set', replaceIntervalHours: 17520 },
+      ],
+    },
+    {
+      model: 'WBP-T500', label: '부스터 펌프 500LPM', capacity: '500',
+      consumables: [
+        { name: '임펠러 씰 키트 (대형)', partNo: 'WBP-SEAL-500', unit: 'set', replaceIntervalHours: 8760 },
+        { name: '베어링 세트 (대형)', partNo: 'WBP-BEARING-L', unit: 'set', replaceIntervalHours: 17520 },
+      ],
+    },
   ],
 };
 
-const EQUIPMENT_TYPE_LABELS: Record<EquipmentType, string> = {
-  ro: '역삼투압(RO)',
-  di: '초순수(DI)',
-  seawater: '해수담수화',
-  prefilter: '전처리 필터',
-  uv: 'UV 살균기',
-  softener: '연수기',
-  booster: '부스터 펌프',
+const EQUIPMENT_TYPE_LABELS: Record<EquipmentType, { label: string; icon: string }> = {
+  cooling:   { label: '냉각수 스케일제거', icon: '❄️' },
+  ro:        { label: '역삼투압 시스템',   icon: '💧' },
+  di:        { label: '초순수 시스템',     icon: '⚗️' },
+  seawater:  { label: '해수담수화 시스템', icon: '🌊' },
+  uf:        { label: '양액회수·재생',     icon: '♻️' },
+  small:     { label: '소형 시스템',       icon: '🔹' },
+  prefilter: { label: '전처리 필터',       icon: '🫧' },
+  uv:        { label: 'UV살균 시스템',     icon: '☀️' },
+  softener:  { label: '연수 시스템',       icon: '🧪' },
+  filtration:{ label: '여과 시스템',       icon: '🌀' },
+  booster:   { label: '부스터펌프',        icon: '⚡' },
 };
 
 const COMM_TYPE_LABELS: Record<CommType, string> = {
@@ -120,9 +461,14 @@ const INITIAL_FORM: FormData = {
 };
 
 function generateSerialNo(type: EquipmentType): string {
-  const prefix = type === 'ro' ? 'WRO' : type === 'di' ? 'WDI' : type === 'seawater' ? 'WSRO' : 'WEQ';
+  const prefixMap: Record<EquipmentType, string> = {
+    cooling: 'DCRO', ro: 'WRO', di: 'WDI', seawater: 'WSRO',
+    uf: 'WUF', small: 'WSM', prefilter: 'WPF', uv: 'WUV',
+    softener: 'WSF', filtration: 'WFF', booster: 'WBP',
+  };
+  const prefix = prefixMap[type] || 'WEQ';
   const year = new Date().getFullYear();
-  const seq = String(Math.floor(Math.random() * 900) + 100);
+  const seq = String(Math.floor(Math.random() * 9000) + 1000);
   return `${prefix}-${year}-${seq}`;
 }
 
@@ -131,25 +477,40 @@ interface Props {
   onClose: () => void;
   onAdd?: (data: FormData) => void;
   onSuccess?: () => void;
+  presetCompanyId?: string;
 }
 
-export default function AddEquipmentModal({ open, onClose, onAdd, onSuccess }: Props) {
+export default function AddEquipmentModal({ open, onClose, onAdd, onSuccess, presetCompanyId }: Props) {
   const [step, setStep] = useState<Step>('type');
-  const [form, setForm] = useState<FormData>(INITIAL_FORM);
+  const [form, setForm] = useState<FormData>({ ...INITIAL_FORM, companyId: presetCompanyId || '' });
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState('');
   const [companies, setCompanies] = useState<Company[]>([]);
   const [companiesLoading, setCompaniesLoading] = useState(false);
+  const [catalogItems, setCatalogItems] = useState<EquipmentCatalogItem[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [selectedCatalogItem, setSelectedCatalogItem] = useState<EquipmentCatalogItem | null>(null);
 
   useEffect(() => {
     if (!open) return;
+    setForm(f => ({ ...f, companyId: presetCompanyId || '' }));
     setCompaniesLoading(true);
     companiesApi.list()
       .then(data => setCompanies(data as Company[]))
       .catch(() => setCompanies([]))
       .finally(() => setCompaniesLoading(false));
-  }, [open]);
+  }, [open, presetCompanyId]);
+
+  // 장비 유형 선택 시 카탈로그 로드
+  useEffect(() => {
+    if (!form.equipmentType || step !== 'model') return;
+    setCatalogLoading(true);
+    equipmentCatalogApi.list({ equipment_type: form.equipmentType, active_only: 'true' })
+      .then(data => setCatalogItems(data))
+      .catch(() => setCatalogItems([]))
+      .finally(() => setCatalogLoading(false));
+  }, [form.equipmentType, step]);
 
   if (!open) return null;
 
@@ -163,7 +524,25 @@ export default function AddEquipmentModal({ open, onClose, onAdd, onSuccess }: P
     setStep('model');
   };
 
-  const handleModelSelect = (model: string, capacity: string) => {
+  const handleModelSelect = (catalogItem: EquipmentCatalogItem) => {
+    const serial = generateSerialNo(form.equipmentType as EquipmentType);
+    const capacity = String((catalogItem.specs as Record<string, unknown>)?.capacity_lph || '');
+    setSelectedCatalogItem(catalogItem);
+    setForm(f => ({
+      ...f,
+      model: catalogItem.model_code,
+      capacityLph: capacity,
+      serialNo: serial,
+      warrantyEnd: (() => {
+        const d = new Date();
+        d.setMonth(d.getMonth() + (catalogItem.warranty_months || 12));
+        return d.toISOString().split('T')[0];
+      })(),
+    }));
+    setStep('company');
+  };
+
+  const handleLegacyModelSelect = (model: string, capacity: string) => {
     const serial = generateSerialNo(form.equipmentType as EquipmentType);
     setForm(f => ({ ...f, model, capacityLph: capacity, serialNo: serial }));
     setStep('company');
@@ -180,7 +559,7 @@ export default function AddEquipmentModal({ open, onClose, onAdd, onSuccess }: P
         : form.commType === 'opcua' ? { endpoint: `opc.tcp://${form.commIp}:${form.commPort || 4840}` }
         : undefined;
 
-      await equipmentApi.create({
+      const newEquipment = await equipmentApi.create({
         company_id: form.companyId,
         serial_no: form.serialNo,
         model: form.model,
@@ -197,6 +576,43 @@ export default function AddEquipmentModal({ open, onClose, onAdd, onSuccess }: P
         comm_type: form.commType || undefined,
         comm_config: commConfig,
       });
+
+      // 카탈로그 기본 소모품을 filters 테이블에 자동 등록
+      const companyName = selectedCompany?.name;
+      const defaultConsumables =
+        selectedCatalogItem?.default_consumables ||
+        WATERNIX_MODELS[form.equipmentType as EquipmentType]?.find(m => m.model === form.model)?.consumables?.map(c => ({
+          part_no: c.partNo || '',
+          name: c.name,
+          interval_days: c.replaceIntervalHours ? Math.ceil(c.replaceIntervalHours / 24) : 180,
+        })) || [];
+
+      if (defaultConsumables.length > 0 && newEquipment?.id) {
+        const today = new Date().toISOString().split('T')[0];
+        await Promise.allSettled(
+          defaultConsumables.map((c, idx) => {
+            const intervalDays = c.interval_days || 180;
+            const d = new Date();
+            d.setDate(d.getDate() + intervalDays);
+            const replaceDate = d.toISOString().split('T')[0];
+            return filtersApi.create({
+              equipment_id: newEquipment.id,
+              equipment_name: form.name || form.model,
+              company_name: companyName,
+              filter_name: c.name,
+              filter_type: 'filter',
+              stage: idx + 1,
+              part_no: c.part_no || undefined,
+              supplier: '워터닉스(자사)',
+              install_date: today,
+              replace_date: replaceDate,
+              used_percent: 0,
+              status: 'normal',
+            });
+          })
+        );
+      }
+
       setSuccess(true);
       onAdd?.(form);
       onSuccess?.();
@@ -214,6 +630,8 @@ export default function AddEquipmentModal({ open, onClose, onAdd, onSuccess }: P
   };
 
   const canNext = () => {
+    if (step === 'type') return !!form.equipmentType;
+    if (step === 'model') return !!form.model;
     if (step === 'company') return !!form.companyId;
     if (step === 'location') return !!form.city && !!form.address;
     if (step === 'comm') return !!form.commType;
@@ -295,10 +713,8 @@ export default function AddEquipmentModal({ open, onClose, onAdd, onSuccess }: P
                         : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-500'
                     )}
                   >
-                    <div className="text-2xl mb-2">
-                      {t === 'ro' ? '💧' : t === 'di' ? '🔬' : t === 'seawater' ? '🌊' : t === 'prefilter' ? '🫧' : t === 'uv' ? '☀️' : t === 'softener' ? '💎' : '⚡'}
-                    </div>
-                    <div className="font-semibold text-sm">{EQUIPMENT_TYPE_LABELS[t]}</div>
+                    <div className="text-2xl mb-2">{EQUIPMENT_TYPE_LABELS[t].icon}</div>
+                    <div className="font-semibold text-sm">{EQUIPMENT_TYPE_LABELS[t].label}</div>
                     <div className="text-xs text-slate-500 mt-1">{WATERNIX_MODELS[t].length}개 모델</div>
                   </button>
                 ))}
@@ -307,33 +723,85 @@ export default function AddEquipmentModal({ open, onClose, onAdd, onSuccess }: P
           ) : step === 'model' ? (
             <div>
               <p className="text-sm text-slate-400 mb-4">
-                {EQUIPMENT_TYPE_LABELS[form.equipmentType as EquipmentType]} 모델을 선택하세요
+                {EQUIPMENT_TYPE_LABELS[form.equipmentType as EquipmentType]?.label} 모델을 선택하세요
               </p>
-              <div className="space-y-2">
-                {WATERNIX_MODELS[form.equipmentType as EquipmentType]?.map(m => (
-                  <button
-                    key={m.model}
-                    onClick={() => handleModelSelect(m.model, m.capacity)}
-                    className={cn(
-                      'w-full flex items-center justify-between p-4 rounded-xl border transition-all text-left',
-                      form.model === m.model
-                        ? 'border-teal-500 bg-teal-500/10 text-teal-300'
-                        : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-500'
-                    )}
-                  >
-                    <div>
-                      <div className="font-bold text-sm">{m.model}</div>
-                      <div className="text-xs text-slate-400 mt-0.5">{m.label}</div>
-                    </div>
-                    {m.capacity !== '0' && (
-                      <div className="text-right flex-shrink-0">
-                        <div className="text-xs text-slate-500">처리 용량</div>
-                        <div className="font-bold text-teal-400">{Number(m.capacity).toLocaleString()} L/h</div>
+              {catalogLoading ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="animate-spin text-blue-400" size={28} />
+                </div>
+              ) : catalogItems.length > 0 ? (
+                <div className="space-y-2">
+                  {catalogItems.map(item => {
+                    const cap = (item.specs as Record<string, unknown>)?.capacity_lph as number | undefined;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => handleModelSelect(item)}
+                        className={cn(
+                          'w-full flex items-center justify-between p-4 rounded-xl border transition-all text-left',
+                          form.model === item.model_code
+                            ? 'border-teal-500 bg-teal-500/10 text-teal-300'
+                            : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-500'
+                        )}
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm font-mono">{item.model_code}</span>
+                            {item.sell_price && (
+                              <span className="text-xs text-slate-500 bg-slate-700 px-1.5 py-0.5 rounded">
+                                {item.sell_price.toLocaleString()}원
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-slate-400 mt-0.5">{item.model_name}</div>
+                          {item.default_consumables && item.default_consumables.length > 0 && (
+                            <div className="text-xs text-teal-600 mt-1">
+                              소모품 {item.default_consumables.length}종 자동 등록
+                            </div>
+                          )}
+                        </div>
+                        {cap && (
+                          <div className="text-right flex-shrink-0 ml-4">
+                            <div className="text-xs text-slate-500">처리 용량</div>
+                            <div className="font-bold text-teal-400">{Number(cap).toLocaleString()} L/h</div>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* 카탈로그에 없으면 기존 하드코딩 목록 표시 */
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 p-3 bg-slate-800/50 rounded-lg text-xs text-slate-400 mb-3">
+                    <Box size={14} className="text-blue-400" />
+                    카탈로그에 등록된 모델이 없습니다. 직접 입력하거나 카탈로그에 먼저 제품을 등록하세요.
+                  </div>
+                  {WATERNIX_MODELS[form.equipmentType as EquipmentType]?.map(m => (
+                    <button
+                      key={m.model}
+                      onClick={() => handleLegacyModelSelect(m.model, m.capacity)}
+                      className={cn(
+                        'w-full flex items-center justify-between p-4 rounded-xl border transition-all text-left',
+                        form.model === m.model
+                          ? 'border-teal-500 bg-teal-500/10 text-teal-300'
+                          : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-500'
+                      )}
+                    >
+                      <div>
+                        <div className="font-bold text-sm">{m.model}</div>
+                        <div className="text-xs text-slate-400 mt-0.5">{m.label}</div>
                       </div>
-                    )}
-                  </button>
-                ))}
-              </div>
+                      {m.capacity !== '0' && (
+                        <div className="text-right flex-shrink-0">
+                          <div className="text-xs text-slate-500">처리 용량</div>
+                          <div className="font-bold text-teal-400">{Number(m.capacity).toLocaleString()} L/h</div>
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="mt-4 p-3 bg-slate-800 rounded-xl">
                 <label className="block text-xs text-slate-400 mb-1">장비 별칭 (선택)</label>
                 <input
@@ -519,7 +987,7 @@ export default function AddEquipmentModal({ open, onClose, onAdd, onSuccess }: P
               <p className="text-sm text-slate-400">등록 정보를 확인하세요</p>
               <div className="bg-slate-800 rounded-xl divide-y divide-slate-700 overflow-hidden">
                 {[
-                  { label: '장비 유형', value: EQUIPMENT_TYPE_LABELS[form.equipmentType as EquipmentType] },
+                  { label: '장비 유형', value: EQUIPMENT_TYPE_LABELS[form.equipmentType as EquipmentType]?.label || form.equipmentType },
                   { label: '모델', value: form.model },
                   { label: '장비 별칭', value: form.name || '-' },
                   { label: '시리얼 번호', value: form.serialNo },
@@ -563,7 +1031,7 @@ export default function AddEquipmentModal({ open, onClose, onAdd, onSuccess }: P
             ) : (
               <button
                 onClick={next}
-                disabled={!canNext() && step !== 'type' && step !== 'model'}
+                disabled={!canNext()}
                 className="flex items-center gap-1.5 px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 다음 <ChevronRight className="w-4 h-4" />

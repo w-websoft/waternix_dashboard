@@ -39,16 +39,21 @@ export default function AlertsPage() {
     step: 'received', assignee: '미배정', comment: '',
   });
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+
+  const [loadError, setLoadError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError('');
     try {
       const params: Record<string, string | boolean | undefined> = { resolved: showResolved };
       if (severityFilter !== 'all') params.severity = severityFilter;
       if (search) params.search = search;
       const data = await alertsApi.list(params);
       setAlerts(data);
-    } catch {
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : '알림 데이터를 불러오지 못했습니다.');
       setAlerts([]);
     } finally {
       setLoading(false);
@@ -81,6 +86,7 @@ export default function AlertsPage() {
   const handleProcessUpdate = async () => {
     if (!showProcessModal) return;
     setSaving(true);
+    setSaveError('');
     try {
       await alertsApi.process(showProcessModal.id, {
         process_step: processForm.step,
@@ -89,8 +95,8 @@ export default function AlertsPage() {
       });
       setShowProcessModal(null);
       load();
-    } catch {
-      // ignore
+    } catch (e: unknown) {
+      setSaveError(e instanceof Error ? e.message : '처리 중 오류가 발생했습니다');
     } finally {
       setSaving(false);
     }
@@ -155,6 +161,12 @@ export default function AlertsPage() {
           <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
         </button>
       </div>
+
+      {loadError && (
+        <div className="flex items-center gap-2 p-3 mb-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+          <span className="shrink-0">⚠️</span> {loadError}
+        </div>
+      )}
 
       {/* Alert List */}
       <div className="space-y-3">
@@ -381,7 +393,11 @@ export default function AlertsPage() {
                 />
               </div>
             </div>
-            <div className="flex justify-end gap-3 px-5 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
+            <div className="flex flex-col gap-2 px-5 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
+              {saveError && (
+                <p className="text-xs text-red-500 text-right">{saveError}</p>
+              )}
+              <div className="flex justify-end gap-3">
               <button onClick={() => setShowProcessModal(null)} className="px-4 py-2 text-sm text-slate-500">취소</button>
               <button
                 onClick={handleProcessUpdate}
@@ -398,6 +414,7 @@ export default function AlertsPage() {
                 {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                 상태 저장
               </button>
+              </div>
             </div>
           </div>
         </div>

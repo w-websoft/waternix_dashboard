@@ -40,12 +40,13 @@ interface Props {
   open: boolean;
   onClose: () => void;
   presetEquipmentId?: string;
+  presetCompanyId?: string;
   onAdd?: (data: MaintenanceForm) => void;
   onSuccess?: () => void;
 }
 
-export default function AddMaintenanceModal({ open, onClose, presetEquipmentId, onAdd, onSuccess }: Props) {
-  const [form, setForm] = useState<MaintenanceForm>({ ...INITIAL, equipmentId: presetEquipmentId || '' });
+export default function AddMaintenanceModal({ open, onClose, presetEquipmentId, presetCompanyId, onAdd, onSuccess }: Props) {
+  const [form, setForm] = useState<MaintenanceForm>({ ...INITIAL, equipmentId: presetEquipmentId || '', companyId: presetCompanyId || '' });
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState('');
@@ -54,6 +55,16 @@ export default function AddMaintenanceModal({ open, onClose, presetEquipmentId, 
   const [companies, setCompanies] = useState<Company[]>([]);
   const [equipmentList, setEquipmentList] = useState<Equipment[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
+
+  // 모달이 열릴 때마다 preset 값으로 폼 초기화
+  useEffect(() => {
+    if (open) {
+      setForm({ ...INITIAL, equipmentId: presetEquipmentId || '', companyId: presetCompanyId || '' });
+      setSaved(false);
+      setApiError('');
+      setErrors({});
+    }
+  }, [open, presetEquipmentId, presetCompanyId]);
 
   useEffect(() => {
     if (!open) return;

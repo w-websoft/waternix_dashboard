@@ -13,13 +13,14 @@ import '@xyflow/react/dist/style.css';
 import EquipmentNode, { EquipmentNodeData } from '@/components/layout-editor/EquipmentNode';
 import CustomImageNode, { ImageNodeData } from '@/components/layout-editor/CustomImageNode';
 import TextLabelNode, { TextLabelData } from '@/components/layout-editor/TextLabelNode';
-import { mockEquipment } from '@/lib/mock-data';
+import { equipmentApi, companiesApi } from '@/lib/api';
+import type { EquipmentPayload } from '@/lib/api';
 import { EQUIPMENT_TYPE_CONFIG } from '@/lib/utils';
 import {
   ArrowLeft, Save, Grid3X3,
   Plus, Trash2, Upload, Cpu, Link2,
   Download, Settings2, ChevronRight, ChevronLeft,
-  LayoutDashboard
+  LayoutDashboard, Loader2,
 } from 'lucide-react';
 
 function generateNodeId(prefix: string) {
@@ -49,32 +50,22 @@ const PIPE_COLORS = {
 
 type PipeType = keyof typeof PIPE_COLORS;
 
-// 초기 노드 생성 함수
-function buildInitialNodes(equipmentId: string): Node[] {
-  const eq = mockEquipment.find(e => e.id === equipmentId);
-  if (!eq) return [];
-
-  const typeConf = EQUIPMENT_TYPE_CONFIG[eq.equipmentType];
-  const nodes: Node[] = [
+function buildInitialNodesFromApi(eq: EquipmentPayload): Node[] {
+  const eqType = eq.equipment_type as keyof typeof EQUIPMENT_TYPE_CONFIG;
+  const typeConf = EQUIPMENT_TYPE_CONFIG[eqType] || EQUIPMENT_TYPE_CONFIG.ro;
+  return [
     {
-      id: equipmentId,
+      id: eq.id!,
       type: 'equipment',
       position: { x: 400, y: 280 },
       data: {
         label: eq.name || eq.model,
         model: eq.model,
-        type: eq.equipmentType,
+        type: eq.equipment_type,
         icon: typeConf.icon,
-        status: eq.status,
-        commType: eq.commType,
-        sensor: eq.sensorData ? {
-          flowRate: eq.sensorData.flowRate,
-          outletTds: eq.sensorData.outletTds,
-          inletPressure: eq.sensorData.inletPressure,
-          temperature: eq.sensorData.temperature,
-          powerKw: eq.sensorData.powerKw,
-          rejectionRate: eq.sensorData.rejectionRate,
-        } : undefined,
+        status: eq.status || 'offline',
+        commType: eq.comm_type,
+        sensor: undefined,
       } as EquipmentNodeData,
     },
     {
@@ -146,7 +137,6 @@ function buildInitialNodes(equipmentId: string): Node[] {
       data: { label: '✅ 정수 출수', color: '#10b981', bg: 'rgba(16,185,129,0.1)' } as TextLabelData,
     },
   ];
-  return nodes;
 }
 
 function buildInitialEdges(equipmentId: string): Edge[] {
@@ -155,16 +145,14 @@ function buildInitialEdges(equipmentId: string): Edge[] {
       id: 'e1', source: 'label-input', target: 'pre-filter-1',
       type: 'smoothstep', animated: true,
       style: { stroke: '#64748b', strokeWidth: 2.5, strokeDasharray: '6 3' },
-      label: '원수',
-      labelStyle: { fill: '#94a3b8', fontSize: 10 },
+      label: '원수', labelStyle: { fill: '#94a3b8', fontSize: 10 },
     },
     {
       id: 'e2', source: 'pre-filter-1', target: 'carbon-filter',
       type: 'smoothstep', animated: true,
       style: { stroke: '#06b6d4', strokeWidth: 3 },
       markerEnd: { type: MarkerType.ArrowClosed, color: '#06b6d4' },
-      label: '전처리수',
-      labelStyle: { fill: '#06b6d4', fontSize: 10 },
+      label: '전처리수', labelStyle: { fill: '#06b6d4', fontSize: 10 },
     },
     {
       id: 'e3', source: 'carbon-filter', target: equipmentId,
@@ -177,8 +165,7 @@ function buildInitialEdges(equipmentId: string): Edge[] {
       type: 'smoothstep', animated: true,
       style: { stroke: '#00d4aa', strokeWidth: 3 },
       markerEnd: { type: MarkerType.ArrowClosed, color: '#00d4aa' },
-      label: '정수',
-      labelStyle: { fill: '#00d4aa', fontSize: 10 },
+      label: '정수', labelStyle: { fill: '#00d4aa', fontSize: 10 },
     },
     {
       id: 'e5', source: 'uv-sterilizer', target: 'product-tank',
@@ -192,22 +179,18 @@ function buildInitialEdges(equipmentId: string): Edge[] {
       style: { stroke: '#10b981', strokeWidth: 2.5 },
       markerEnd: { type: MarkerType.ArrowClosed, color: '#10b981' },
     },
-    {
-      id: 'e-comm1', source: equipmentId, target: 'pre-filter-1',
-      type: 'straight',
-      style: { stroke: '#00d4aa', strokeWidth: 1, strokeDasharray: '4 4' },
-      label: 'MQTT',
-      labelStyle: { fill: '#00d4aa', fontSize: 9 },
-    },
   ];
 }
 
 function LayoutEditorInner({ id }: { id: string }) {
   const router = useRouter();
-  const eq = mockEquipment.find(e => e.id === id);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(buildInitialNodes(id));
-  const [edges, setEdges, onEdgesChange] = useEdgesState(buildInitialEdges(id));
+  const [equipment, setEquipment] = useState<EquipmentPayload | null>(null);
+  const [sidebarEquipment, setSidebarEquipment] = useState<EquipmentPayload[]>([]);
+  const [loadingEq, setLoadingEq] = useState(true);
+
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [pipeType, setPipeType] = useState<PipeType>('water');
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -215,6 +198,45 @@ function LayoutEditorInner({ id }: { id: string }) {
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState<'equipment' | 'shapes' | 'settings'>('equipment');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 장비 데이터 로드
+  useEffect(() => {
+    const load = async () => {
+      setLoadingEq(true);
+      try {
+        const eq = await equipmentApi.get(id);
+        setEquipment(eq);
+
+        // 저장된 배치도 불러오기 (localStorage 우선)
+        const saved = localStorage.getItem(`layout_${id}`);
+        if (saved) {
+          const data = JSON.parse(saved);
+          setNodes(data.nodes || []);
+          setEdges(data.edges || []);
+        } else {
+          // 초기 레이아웃 생성
+          setNodes(buildInitialNodesFromApi(eq));
+          setEdges(buildInitialEdges(eq.id!));
+        }
+
+        // 같은 업체의 다른 장비 로드 (사이드바)
+        if (eq.company_id) {
+          const companyEq = await companiesApi.getEquipment(eq.company_id);
+          setSidebarEquipment(companyEq as EquipmentPayload[]);
+        } else {
+          const all = await equipmentApi.list();
+          setSidebarEquipment((all as EquipmentPayload[]).slice(0, 20));
+        }
+      } catch {
+        // 장비를 찾지 못한 경우 빈 캔버스
+        setNodes([]);
+        setEdges([]);
+      } finally {
+        setLoadingEq(false);
+      }
+    };
+    load();
+  }, [id]);
 
   const onConnect = useCallback((connection: Connection) => {
     const color = PIPE_COLORS[pipeType].stroke;
@@ -242,17 +264,6 @@ function LayoutEditorInner({ id }: { id: string }) {
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const handleLoad = useCallback(() => {
-    const saved = localStorage.getItem(`layout_${id}`);
-    if (saved) {
-      const data = JSON.parse(saved);
-      setNodes(data.nodes);
-      setEdges(data.edges);
-    }
-  }, [id, setNodes, setEdges]);
-
-  useEffect(() => { handleLoad(); }, [handleLoad]);
-
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -266,8 +277,9 @@ function LayoutEditorInner({ id }: { id: string }) {
     setNodes(nds => [...nds, newNode]);
   };
 
-  const addEquipmentNode = (eq: typeof mockEquipment[0]) => {
-    const typeConf = EQUIPMENT_TYPE_CONFIG[eq.equipmentType];
+  const addEquipmentNode = (eq: EquipmentPayload) => {
+    const eqType = eq.equipment_type as keyof typeof EQUIPMENT_TYPE_CONFIG;
+    const typeConf = EQUIPMENT_TYPE_CONFIG[eqType] || EQUIPMENT_TYPE_CONFIG.ro;
     const newNode: Node = {
       id: generateNodeId('eq'),
       type: 'equipment',
@@ -275,16 +287,11 @@ function LayoutEditorInner({ id }: { id: string }) {
       data: {
         label: eq.name || eq.model,
         model: eq.model,
-        type: eq.equipmentType,
+        type: eq.equipment_type,
         icon: typeConf.icon,
-        status: eq.status,
-        commType: eq.commType,
-        sensor: eq.sensorData ? {
-          flowRate: eq.sensorData.flowRate,
-          outletTds: eq.sensorData.outletTds,
-          inletPressure: eq.sensorData.inletPressure,
-          temperature: eq.sensorData.temperature,
-        } : undefined,
+        status: eq.status || 'offline',
+        commType: eq.comm_type,
+        sensor: undefined,
       } as EquipmentNodeData,
     };
     setNodes(nds => [...nds, newNode]);
@@ -312,18 +319,27 @@ function LayoutEditorInner({ id }: { id: string }) {
   }, [setNodes, setEdges]);
 
   const handleExport = () => {
-    const data = { nodes, edges, equipment: eq?.name, exportedAt: new Date().toISOString() };
+    const data = { nodes, edges, equipment: equipment?.name, exportedAt: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `layout_${eq?.serialNo || id}.json`;
+    a.download = `layout_${equipment?.serial_no || id}.json`;
     a.click();
   };
 
+  if (loadingEq) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center" style={{ background: '#060d1a' }}>
+        <Loader2 className="w-8 h-8 animate-spin text-teal-400" />
+        <span className="ml-3 text-slate-400 text-sm">시설 배치도 로딩 중...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen w-full flex flex-col overflow-hidden" style={{ background: '#060d1a' }}>
-      {/* ─── Top Toolbar ───────────────────────────────────────────────────────── */}
+      {/* ─── Top Toolbar ─────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10 flex-shrink-0"
         style={{ background: 'rgba(6,13,26,0.95)', backdropFilter: 'blur(10px)' }}>
         <div className="flex items-center gap-3">
@@ -335,14 +351,17 @@ function LayoutEditorInner({ id }: { id: string }) {
           <div className="flex items-center gap-2">
             <LayoutDashboard className="w-4 h-4 text-teal-400" />
             <div>
-              <div className="text-white font-semibold text-sm leading-tight">{eq?.name || eq?.model} — 시설 배치도</div>
-              <div className="text-slate-500 text-xs">{eq?.companyName} · {eq?.address}</div>
+              <div className="text-white font-semibold text-sm leading-tight">
+                {equipment ? (equipment.name || equipment.model) : '장비 없음'} — 시설 배치도
+              </div>
+              <div className="text-slate-500 text-xs">
+                {equipment?.company_name || '-'} · {equipment?.address || equipment?.city || '-'}
+              </div>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Pipe Type Selector */}
           <div className="flex items-center gap-1 bg-white/5 rounded-xl px-2 py-1.5 border border-white/10">
             <Link2 className="w-3.5 h-3.5 text-slate-400 mr-1" />
             {(Object.entries(PIPE_COLORS) as [PipeType, { stroke: string; label: string }][]).map(([key, val]) => (
@@ -385,15 +404,15 @@ function LayoutEditorInner({ id }: { id: string }) {
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* ─── Left Sidebar ──────────────────────────────────────────────────────── */}
+        {/* ─── Left Sidebar ──────────────────────────────────────────────────── */}
         <div className={`flex-shrink-0 transition-all duration-300 overflow-hidden border-r border-white/10 flex flex-col ${sidebarOpen ? 'w-64' : 'w-0'}`}
           style={{ background: 'rgba(6,13,26,0.95)' }}>
           {/* Tabs */}
           <div className="flex border-b border-white/10 flex-shrink-0">
             {([
               { id: 'equipment', label: '장비', icon: Cpu },
-              { id: 'shapes', label: '도형', icon: Grid3X3 },
-              { id: 'settings', label: '설정', icon: Settings2 },
+              { id: 'shapes',    label: '도형', icon: Grid3X3 },
+              { id: 'settings',  label: '설정', icon: Settings2 },
             ] as const).map(tab => {
               const Icon = tab.icon;
               return (
@@ -411,21 +430,28 @@ function LayoutEditorInner({ id }: { id: string }) {
             {/* Equipment Tab */}
             {activeTab === 'equipment' && (
               <>
-                <div className="text-xs text-slate-500 uppercase tracking-wider mb-2 px-1">캔버스에 드래그하여 추가</div>
-                {mockEquipment.map(eq => {
-                  const tc = EQUIPMENT_TYPE_CONFIG[eq.equipmentType];
-                  return (
-                    <button key={eq.id} onClick={() => addEquipmentNode(eq)}
-                      className="w-full flex items-center gap-2.5 p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-teal-500/40 transition-all text-left group">
-                      <span className="text-xl flex-shrink-0">{tc.icon}</span>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-white text-xs font-medium truncate">{eq.name || eq.model}</div>
-                        <div className="text-slate-500 text-[10px] truncate">{eq.city} · {tc.label}</div>
-                      </div>
-                      <Plus className="w-3.5 h-3.5 text-slate-600 group-hover:text-teal-400 flex-shrink-0" />
-                    </button>
-                  );
-                })}
+                <div className="text-xs text-slate-500 uppercase tracking-wider mb-2 px-1">
+                  {equipment?.company_name ? `${equipment.company_name} 장비` : '캔버스에 드래그하여 추가'}
+                </div>
+                {sidebarEquipment.length === 0 ? (
+                  <div className="text-center text-slate-600 text-xs py-8">등록된 장비가 없습니다</div>
+                ) : (
+                  sidebarEquipment.map(eq => {
+                    const eqType = eq.equipment_type as keyof typeof EQUIPMENT_TYPE_CONFIG;
+                    const tc = EQUIPMENT_TYPE_CONFIG[eqType] || { icon: '🔧', label: eq.equipment_type };
+                    return (
+                      <button key={eq.id} onClick={() => addEquipmentNode(eq)}
+                        className="w-full flex items-center gap-2.5 p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-teal-500/40 transition-all text-left group">
+                        <span className="text-xl flex-shrink-0">{tc.icon}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-white text-xs font-medium truncate">{eq.name || eq.model}</div>
+                          <div className="text-slate-500 text-[10px] truncate">{eq.city || eq.district || '-'} · {tc.label}</div>
+                        </div>
+                        <Plus className="w-3.5 h-3.5 text-slate-600 group-hover:text-teal-400 flex-shrink-0" />
+                      </button>
+                    );
+                  })
+                )}
               </>
             )}
 
@@ -433,8 +459,6 @@ function LayoutEditorInner({ id }: { id: string }) {
             {activeTab === 'shapes' && (
               <>
                 <div className="text-xs text-slate-500 uppercase tracking-wider mb-2 px-1">도형/레이블 추가</div>
-
-                {/* Image Upload */}
                 <button onClick={() => fileInputRef.current?.click()}
                   className="w-full flex items-center gap-2.5 p-3 rounded-xl bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 hover:border-teal-400/60 transition-all">
                   <Upload className="w-4 h-4 text-teal-400" />
@@ -447,7 +471,6 @@ function LayoutEditorInner({ id }: { id: string }) {
 
                 <div className="w-full h-px bg-white/10 my-1" />
                 <div className="text-[10px] text-slate-600 px-1 mb-1">텍스트 레이블</div>
-
                 {[
                   { label: '🌊 원수 입수', type: 'text' },
                   { label: '✅ 정수 출수', type: 'text' },
@@ -481,7 +504,6 @@ function LayoutEditorInner({ id }: { id: string }) {
                     {pipeType === key && <div className="w-1.5 h-1.5 rounded-full bg-teal-400" />}
                   </button>
                 ))}
-
                 <div className="w-full h-px bg-white/10 my-2" />
                 <div className="text-xs text-slate-500 uppercase tracking-wider mb-2 px-1">범례</div>
                 <div className="bg-white/5 rounded-xl p-3 space-y-2 border border-white/10">
@@ -499,12 +521,12 @@ function LayoutEditorInner({ id }: { id: string }) {
 
         {/* Toggle Sidebar Button */}
         <button onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="absolute left-0 top-1/2 -translate-y-1/2 z-20 w-4 h-12 rounded-r-lg bg-slate-700 hover:bg-teal-500 text-slate-400 hover:text-white transition-all flex items-center justify-center"
-          style={{ left: sidebarOpen ? 256 : 0 }}>
+          className="absolute z-20 w-4 h-12 rounded-r-lg bg-slate-700 hover:bg-teal-500 text-slate-400 hover:text-white transition-all flex items-center justify-center"
+          style={{ left: sidebarOpen ? 256 : 0, top: '50%', transform: 'translateY(-50%)' }}>
           {sidebarOpen ? <ChevronLeft className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
         </button>
 
-        {/* ─── Canvas ──────────────────────────────────────────────────────────── */}
+        {/* ─── Canvas ──────────────────────────────────────────────────────── */}
         <div className="flex-1 relative">
           <ReactFlow
             nodes={nodes}
@@ -527,7 +549,6 @@ function LayoutEditorInner({ id }: { id: string }) {
             fitViewOptions={{ padding: 0.15 }}
             style={{ background: 'transparent' }}
           >
-            {/* Dark grid background */}
             {showGrid && (
               <Background
                 variant={BackgroundVariant.Dots}
@@ -536,12 +557,10 @@ function LayoutEditorInner({ id }: { id: string }) {
                 color="rgba(255,255,255,0.05)"
               />
             )}
-
             <Controls
               className="!bg-slate-900/90 !border !border-white/10 !rounded-xl !overflow-hidden"
               style={{ bottom: 20, right: 20 }}
             />
-
             <MiniMap
               className="!bg-slate-900 !border !border-white/10 !rounded-xl"
               nodeColor={(n) => {
@@ -555,10 +574,9 @@ function LayoutEditorInner({ id }: { id: string }) {
               style={{ bottom: 20, right: 110, width: 160, height: 100 }}
             />
 
-            {/* Status Legend Panel */}
+            {/* Status Legend */}
             <Panel position="top-right">
-              <div className="bg-slate-900/90 border border-white/10 rounded-xl p-3 text-xs space-y-1.5 backdrop-blur"
-                style={{ minWidth: 160 }}>
+              <div className="bg-slate-900/90 border border-white/10 rounded-xl p-3 text-xs space-y-1.5 backdrop-blur" style={{ minWidth: 160 }}>
                 <div className="text-slate-400 font-semibold mb-2">장비 상태</div>
                 {[
                   { color: '#10b981', label: '정상 가동' },
@@ -605,11 +623,11 @@ function LayoutEditorInner({ id }: { id: string }) {
                 </div>
                 <div className="p-4 space-y-2">
                   {d.sensor && Object.entries({
-                    '유량': d.sensor.flowRate ? `${d.sensor.flowRate.toFixed(1)} L/min` : '-',
-                    'TDS': d.sensor.outletTds !== undefined ? `${d.sensor.outletTds} ppm` : '-',
-                    '압력': d.sensor.inletPressure ? `${d.sensor.inletPressure.toFixed(1)} bar` : '-',
-                    '수온': d.sensor.temperature ? `${d.sensor.temperature.toFixed(1)} °C` : '-',
-                    '전력': d.sensor.powerKw ? `${d.sensor.powerKw.toFixed(2)} kW` : '-',
+                    '유량':  d.sensor.flowRate    ? `${d.sensor.flowRate.toFixed(1)} L/min`    : '-',
+                    'TDS':   d.sensor.outletTds   !== undefined ? `${d.sensor.outletTds} ppm`  : '-',
+                    '압력':  d.sensor.inletPressure ? `${d.sensor.inletPressure.toFixed(1)} bar` : '-',
+                    '수온':  d.sensor.temperature   ? `${d.sensor.temperature.toFixed(1)} °C`   : '-',
+                    '전력':  d.sensor.powerKw       ? `${d.sensor.powerKw.toFixed(2)} kW`       : '-',
                     '제거율': d.sensor.rejectionRate ? `${d.sensor.rejectionRate.toFixed(1)} %` : '-',
                   }).map(([k, v]) => v !== '-' && (
                     <div key={k} className="flex justify-between text-xs">
@@ -619,7 +637,7 @@ function LayoutEditorInner({ id }: { id: string }) {
                   ))}
                   <div className="flex justify-between text-xs border-t border-white/10 pt-2 mt-1">
                     <span className="text-slate-500">통신</span>
-                    <span className="text-blue-400">{d.commType?.toUpperCase()}</span>
+                    <span className="text-blue-400">{d.commType?.toUpperCase() || '-'}</span>
                   </div>
                 </div>
               </div>

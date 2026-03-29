@@ -43,6 +43,7 @@ def _row_to_filter(row) -> dict:
 async def get_filters(
     status: Optional[str] = None,
     equipment_id: Optional[str] = None,
+    company_id: Optional[str] = None,
     search: Optional[str] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(100, ge=1, le=500),
@@ -59,6 +60,12 @@ async def get_filters(
             if equipment_id:
                 params.append(equipment_id)
                 conditions.append(f"equipment_id = ${len(params)}")
+            if company_id:
+                # filters 테이블에 company_id 컬럼이 없으므로 equipment JOIN
+                params.append(company_id)
+                conditions.append(
+                    f"equipment_id IN (SELECT id FROM equipment WHERE company_id = ${len(params)})"
+                )
             if search:
                 params.append(f"%{search}%")
                 n = len(params)

@@ -1,15 +1,14 @@
 """
 업체(고객사) 관리 API 라우터
 """
-import json
 import logging
 import uuid
-from typing import Optional, List
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
 from app.db.database import get_pool
-from app.models.schemas import CompanyCreate, CompanyUpdate, CompanyResponse, EquipmentResponse
+from app.models.schemas import CompanyCreate, CompanyUpdate, CompanyResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/companies", tags=["업체 관리"])
@@ -85,8 +84,8 @@ async def create_company(data: CompanyCreate):
                 INSERT INTO companies (
                     id, name, business_no, contact, phone, email,
                     address, city, district,
-                    contract_start, contract_end, status
-                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+                    contract_start, contract_end, notes, status
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
                 RETURNING *
                 """,
                 cid,
@@ -100,6 +99,7 @@ async def create_company(data: CompanyCreate):
                 data.district,
                 data.contract_start,
                 data.contract_end,
+                data.notes,
                 data.status or "active",
             )
             result = _row_to_company(row)
@@ -154,7 +154,10 @@ async def update_company(company_id: str, data: CompanyUpdate):
             if not row:
                 raise HTTPException(status_code=404, detail="업체를 찾을 수 없습니다")
             result = _row_to_company(row)
-            result["equipment_count"] = 0
+            count_row = await conn.fetchrow(
+                "SELECT COUNT(*) AS cnt FROM equipment WHERE company_id = $1", company_id
+            )
+            result["equipment_count"] = int(count_row["cnt"]) if count_row else 0
             return result
     except HTTPException:
         raise

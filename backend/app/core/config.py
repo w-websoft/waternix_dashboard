@@ -50,8 +50,18 @@ class Settings(BaseSettings):
     ALERT_FILTER_WARNING_PCT: int = 80   # %
     ALERT_FILTER_CRITICAL_PCT: int = 95  # %
 
+    # 관리자 계정
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_PASSWORD: str = "Waternix2026!@"
+    ADMIN_EMAIL: str = "admin@waternix.com"
+
     # CORS
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:3001"]
+    CORS_ORIGINS: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "https://gwaternix.w-websoftsrv.kr",
+        "http://gwaternix.w-websoftsrv.kr",
+    ]
 
     class Config:
         env_file = ".env"

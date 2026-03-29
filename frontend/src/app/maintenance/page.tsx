@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { maintenanceApi } from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
-import { Search, Plus, Wrench, Clock, CheckCircle2, XCircle, Calendar, User, Building2, RefreshCw } from 'lucide-react';
+import { Search, Plus, Wrench, Clock, CheckCircle2, XCircle, Calendar, User, Building2, RefreshCw, ChevronDown, ChevronUp, AlertCircle, DollarSign } from 'lucide-react';
 import AddMaintenanceModal from '@/components/maintenance/AddMaintenanceModal';
 
 type MaintenanceStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
@@ -45,13 +46,16 @@ const TYPE_CONFIG: Record<MaintenanceType, { label: string; color: string }> = {
 export default function MaintenancePage() {
   const [records, setRecords] = useState<MaintenanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       const params: Record<string, string> = {};
       if (search) params.search = search;
@@ -59,7 +63,8 @@ export default function MaintenancePage() {
       if (typeFilter !== 'all') params.type = typeFilter;
       const data = await maintenanceApi.list(params);
       setRecords(data as unknown as MaintenanceRecord[]);
-    } catch {
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '데이터를 불러오지 못했습니다.');
       setRecords([]);
     } finally {
       setLoading(false);
@@ -150,6 +155,12 @@ export default function MaintenancePage() {
         onSuccess={load}
       />
 
+      {error && (
+        <div className="flex items-center gap-2 p-3 mb-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+          <AlertCircle className="w-4 h-4 shrink-0" /> {error}
+        </div>
+      )}
+
       {loading ? (
         <div className="space-y-3">
           {[...Array(4)].map((_, i) => (
@@ -165,10 +176,15 @@ export default function MaintenancePage() {
               const typeConf = TYPE_CONFIG[record.type] || { label: record.type, color: 'text-slate-600' };
               const StatusIcon = statusConf.icon;
               const n = norm(record);
+              const isExpanded = expandedId === record.id;
               return (
-                <div key={record.id} className="bg-white rounded-xl border border-slate-200 p-3 sm:p-5 hover:shadow-sm transition-all cursor-pointer group">
-                  <div className="flex items-start gap-3 sm:gap-4">
-                    <div className={cn('w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0', statusConf.bg)}>
+                <div key={record.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-sm transition-all">
+                  {/* 카드 헤더 - 클릭으로 펼치기 */}
+                  <div
+                    className="flex items-start gap-3 sm:gap-4 p-3 sm:p-5 cursor-pointer group"
+                    onClick={() => setExpandedId(isExpanded ? null : record.id)}
+                  >
+                    <div className={cn('w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0', statusConf.bg)}>
                       <StatusIcon className={cn('w-4 h-4 sm:w-5 sm:h-5', statusConf.color)} />
                     </div>
 
@@ -187,34 +203,37 @@ export default function MaintenancePage() {
                             </span>
                           </div>
                           {record.description && (
-                            <p className="text-xs sm:text-sm text-slate-500 mt-1 line-clamp-1 sm:line-clamp-2">{record.description}</p>
+                            <p className="text-xs sm:text-sm text-slate-500 mt-1 line-clamp-1">{record.description}</p>
                           )}
                         </div>
-                        {record.cost && (
-                          <div className="text-right flex-shrink-0">
-                            <div className="text-xs text-slate-400">비용</div>
-                            <div className="font-bold text-slate-800 text-sm">{record.cost.toLocaleString('ko-KR')}원</div>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2 shrink-0">
+                          {record.cost && (
+                            <div className="text-right hidden sm:block">
+                              <div className="text-xs text-slate-400">비용</div>
+                              <div className="font-bold text-slate-800 text-sm">{record.cost.toLocaleString('ko-KR')}원</div>
+                            </div>
+                          )}
+                          {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                        </div>
                       </div>
 
-                      <div className="mt-2 sm:mt-3 flex items-center gap-2 sm:gap-4 text-xs text-slate-500 flex-wrap">
+                      <div className="mt-2 flex items-center gap-2 sm:gap-4 text-xs text-slate-500 flex-wrap">
                         <div className="flex items-center gap-1">
-                          <Wrench className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400" />
+                          <Wrench className="w-3 h-3 text-slate-400" />
                           <span className="font-medium text-slate-600 truncate max-w-[100px] sm:max-w-none">{n.equipmentName}</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <Building2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400" />
+                          <Building2 className="w-3 h-3 text-slate-400" />
                           <span className="truncate max-w-[100px] sm:max-w-none">{n.companyName}</span>
                         </div>
                         {record.technician && (
                           <div className="flex items-center gap-1">
-                            <User className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400" />
+                            <User className="w-3 h-3 text-slate-400" />
                             <span>{record.technician}</span>
                           </div>
                         )}
                         <div className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400" />
+                          <Calendar className="w-3 h-3 text-slate-400" />
                           <span>
                             {n.completedDate
                               ? `완료: ${formatDate(n.completedDate)}`
@@ -224,6 +243,43 @@ export default function MaintenancePage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* 펼침 상세 */}
+                  {isExpanded && (
+                    <div className="px-4 pb-4 sm:px-6 sm:pb-5 border-t border-slate-100 bg-slate-50/60">
+                      <div className="pt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <div className="text-xs text-slate-400 mb-1">작업 설명</div>
+                          <div className="text-slate-700">{record.description || '설명 없음'}</div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          {record.cost && (
+                            <div>
+                              <div className="text-xs text-slate-400 mb-1 flex items-center gap-1"><DollarSign className="w-3 h-3" />비용</div>
+                              <div className="font-semibold text-slate-800">{record.cost.toLocaleString('ko-KR')}원</div>
+                            </div>
+                          )}
+                          {n.completedDate && (
+                            <div>
+                              <div className="text-xs text-slate-400 mb-1">완료일</div>
+                              <div className="text-slate-700">{formatDate(n.completedDate)}</div>
+                            </div>
+                          )}
+                        </div>
+                        <div className="sm:col-span-2 flex items-center gap-3 pt-1">
+                          {n.equipmentName !== '-' && (
+                            <Link
+                              href={`/equipment`}
+                              className="text-xs text-blue-600 hover:underline font-medium"
+                              onClick={e => e.stopPropagation()}
+                            >
+                              장비 상세 보기 →
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}

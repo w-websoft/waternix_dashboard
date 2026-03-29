@@ -68,9 +68,12 @@ export default function EquipmentPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [selectedMapId, setSelectedMapId] = useState<string | undefined>();
+  const [error, setError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       const params: Record<string, string> = {};
       if (search) params.search = search;
@@ -78,7 +81,8 @@ export default function EquipmentPage() {
       if (typeFilter !== 'all') params.equipment_type = typeFilter;
       const data = await equipmentApi.list(params);
       setEquipment(data as ApiEquipment[]);
-    } catch {
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '장비 목록을 불러오지 못했습니다.');
       setEquipment([]);
     } finally {
       setLoading(false);
@@ -188,14 +192,25 @@ export default function EquipmentPage() {
 
       <AddEquipmentModal open={showAddModal} onClose={() => setShowAddModal(false)} onSuccess={load} />
 
+      {error && (
+        <div className="flex items-center gap-2 p-3 mb-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+          <span className="shrink-0">⚠️</span> {error}
+        </div>
+      )}
+
       {/* Content */}
       {viewMode === 'map' ? (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden h-[300px] sm:h-[500px] lg:h-[600px]">
           <EquipmentMap
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             equipment={mapEquipment as any}
-            selectedId={undefined}
-            onSelect={() => {}}
+            selectedId={selectedMapId}
+            onSelect={(eq) => {
+              if (eq?.id) {
+                setSelectedMapId(eq.id);
+                window.location.href = `/equipment/${eq.id}`;
+              }
+            }}
             height="100%"
           />
         </div>

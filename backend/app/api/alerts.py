@@ -136,12 +136,12 @@ async def process_alert(alert_id: str, data: AlertProcess):
             row = await conn.fetchrow(
                 """
                 UPDATE alerts
-                SET process_step = $1,
-                    assignee = COALESCE($2, assignee),
-                    process_comment = COALESCE($3, process_comment),
-                    acknowledged = CASE WHEN $1 != 'received' THEN true ELSE acknowledged END,
+                SET process_step = $1::varchar,
+                    assignee = COALESCE($2::varchar, assignee),
+                    process_comment = COALESCE($3::text, process_comment),
+                    acknowledged = CASE WHEN $1::varchar != 'received' THEN true ELSE acknowledged END,
                     process_updated_at = NOW()
-                WHERE id = $4
+                WHERE id = $4::varchar
                 RETURNING *
                 """,
                 data.process_step,
@@ -163,6 +163,10 @@ async def delete_alert(alert_id: str):
     try:
         pool = await get_pool()
         async with pool.acquire() as conn:
-            await conn.execute("DELETE FROM alerts WHERE id = $1", alert_id)
+            result = await conn.execute("DELETE FROM alerts WHERE id = $1", alert_id)
+            if result == "DELETE 0":
+                raise HTTPException(status_code=404, detail="알림을 찾을 수 없습니다")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

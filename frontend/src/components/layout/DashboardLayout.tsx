@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Sidebar from './Sidebar';
 import Header from './Header';
 
@@ -12,6 +13,13 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({ children, title, subtitle }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !localStorage.getItem('waternix_token')) {
+      router.replace('/login');
+    }
+  }, [router]);
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">

@@ -1,7 +1,7 @@
 """
 Pydantic 스키마 정의 - API 요청/응답 모델
 """
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 from enum import Enum
@@ -11,13 +11,17 @@ from uuid import UUID
 # ─── Enums ───────────────────────────────────────────────────────────────────
 
 class EquipmentType(str, Enum):
-    ro = "ro"
-    di = "di"
-    seawater = "seawater"
-    prefilter = "prefilter"
-    uv = "uv"
-    softener = "softener"
-    booster = "booster"
+    cooling = "cooling"      # 냉각수 스케일제거 (DCRO)
+    ro = "ro"                # 역삼투압 (WRO)
+    di = "di"                # 초순수 (WDI)
+    seawater = "seawater"    # 해수담수화 (WSRO)
+    uf = "uf"                # 양액회수·재생 (WUF)
+    small = "small"          # 소형 시스템 (T05/T20)
+    prefilter = "prefilter"  # 전처리 필터
+    uv = "uv"                # UV살균 (WUV)
+    softener = "softener"    # 연수 (WSF)
+    filtration = "filtration"# 여과 (WFF)
+    booster = "booster"      # 부스터펌프
 
 
 class EquipmentStatus(str, Enum):
@@ -87,12 +91,13 @@ class CompanyBase(BaseModel):
     business_no: Optional[str] = None
     contact: Optional[str] = None
     phone: Optional[str] = None
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None
     address: Optional[str] = None
     city: Optional[str] = None
     district: Optional[str] = None
     contract_start: Optional[date] = None
     contract_end: Optional[date] = None
+    notes: Optional[str] = None
     status: str = "active"
 
 

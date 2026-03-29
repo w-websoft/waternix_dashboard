@@ -54,13 +54,17 @@ export const SEVERITY_CONFIG: Record<AlertSeverity, { label: string; color: stri
 };
 
 export const EQUIPMENT_TYPE_CONFIG: Record<EquipmentType, { label: string; icon: string; color: string }> = {
-  ro:        { label: '역삼투압',  icon: '💧', color: 'text-blue-600' },
-  di:        { label: '초순수/DI', icon: '⚗️', color: 'text-violet-600' },
-  seawater:  { label: '해수담수화', icon: '🌊', color: 'text-cyan-600' },
-  prefilter: { label: '전처리',   icon: '🔧', color: 'text-orange-600' },
-  uv:        { label: 'UV 살균',  icon: '☀️', color: 'text-yellow-600' },
-  softener:  { label: '연수기',   icon: '🧪', color: 'text-green-600' },
-  booster:   { label: '부스터펌프', icon: '⚡', color: 'text-red-600' },
+  cooling:   { label: '냉각수 스케일제거', icon: '❄️', color: 'text-sky-600' },
+  ro:        { label: '역삼투압 시스템',  icon: '💧', color: 'text-blue-600' },
+  di:        { label: '초순수 시스템',    icon: '⚗️', color: 'text-violet-600' },
+  seawater:  { label: '해수담수화 시스템', icon: '🌊', color: 'text-cyan-600' },
+  uf:        { label: '양액회수·재생',    icon: '♻️', color: 'text-lime-600' },
+  small:     { label: '소형 시스템',      icon: '🔹', color: 'text-indigo-600' },
+  prefilter: { label: '전처리 필터',      icon: '🔧', color: 'text-orange-600' },
+  uv:        { label: 'UV살균 시스템',    icon: '☀️', color: 'text-yellow-600' },
+  softener:  { label: '연수 시스템',      icon: '🧪', color: 'text-green-600' },
+  filtration:{ label: '여과 시스템',      icon: '🌀', color: 'text-teal-600' },
+  booster:   { label: '부스터펌프',       icon: '⚡', color: 'text-red-600' },
 };
 
 export const MAP_STATUS_COLORS: Record<EquipmentStatus, string> = {

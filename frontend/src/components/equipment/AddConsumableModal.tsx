@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Check, Package, AlertTriangle } from 'lucide-react';
+import { X, Check, Package, AlertTriangle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { filtersApi } from '@/lib/api';
 
 const FILTER_TYPES = [
   { value: 'sediment', label: '세디먼트 필터', icon: '🫧', life: 4380, unit: '시간', partPrefix: 'WN-SF' },
@@ -42,13 +43,17 @@ interface Props {
   open: boolean;
   equipmentId: string;
   equipmentName: string;
+  equipmentCompanyName?: string;
   onClose: () => void;
   onAdd?: (data: ConsumableForm) => void;
+  onSuccess?: () => void;
 }
 
-export default function AddConsumableModal({ open, equipmentName, onClose, onAdd }: Props) {
+export default function AddConsumableModal({ open, equipmentId, equipmentName, equipmentCompanyName, onClose, onAdd, onSuccess }: Props) {
   const [form, setForm] = useState<ConsumableForm>(INITIAL);
   const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [apiError, setApiError] = useState('');
 
   if (!open) return null;
 
@@ -74,14 +79,38 @@ export default function AddConsumableModal({ open, equipmentName, onClose, onAdd
     }));
   };
 
-  const handleSubmit = () => {
-    setSaved(true);
-    onAdd?.(form);
-    setTimeout(() => {
-      setSaved(false);
-      setForm(INITIAL);
-      onClose();
-    }, 1800);
+  const handleSubmit = async () => {
+    if (!form.filterType || !form.installDate) return;
+    setLoading(true);
+    setApiError('');
+    try {
+      await filtersApi.create({
+        equipment_id: equipmentId || undefined,
+        equipment_name: equipmentName || undefined,
+        company_name: equipmentCompanyName || undefined,
+        filter_name: form.filterName,
+        filter_type: form.filterType,
+        stage: form.stage ? Number(form.stage) : undefined,
+        part_no: form.partNo || undefined,
+        supplier: form.supplier || undefined,
+        install_date: form.installDate || undefined,
+        replace_date: form.replaceDate || undefined,
+        used_percent: 0,
+        status: 'normal',
+      });
+      setSaved(true);
+      onAdd?.(form);
+      onSuccess?.();
+      setTimeout(() => {
+        setSaved(false);
+        setForm(INITIAL);
+        onClose();
+      }, 1800);
+    } catch (e: unknown) {
+      setApiError(e instanceof Error ? e.message : '등록 중 오류가 발생했습니다');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const isValid = form.filterType && form.installDate;
@@ -218,15 +247,19 @@ export default function AddConsumableModal({ open, equipmentName, onClose, onAdd
         </div>
 
         {!saved && (
-          <div className="flex justify-end gap-3 px-5 py-4 border-t border-slate-800">
-            <button onClick={onClose} className="px-4 py-2 text-sm text-slate-400 hover:text-white">취소</button>
-            <button
-              onClick={handleSubmit}
-              disabled={!isValid}
-              className="flex items-center gap-2 px-5 py-2 bg-teal-500 hover:bg-teal-400 text-white text-sm font-bold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <Check className="w-4 h-4" /> 등록
-            </button>
+          <div className="flex flex-col gap-2 px-5 py-4 border-t border-slate-800">
+            {apiError && <p className="text-xs text-red-400 text-right">{apiError}</p>}
+            <div className="flex justify-end gap-3">
+              <button onClick={onClose} className="px-4 py-2 text-sm text-slate-400 hover:text-white">취소</button>
+              <button
+                onClick={handleSubmit}
+                disabled={!isValid || loading}
+                className="flex items-center gap-2 px-5 py-2 bg-teal-500 hover:bg-teal-400 text-white text-sm font-bold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                {loading ? '등록 중...' : '등록'}
+              </button>
+            </div>
           </div>
         )}
       </div>

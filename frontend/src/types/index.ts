@@ -1,4 +1,15 @@
-export type EquipmentType = 'ro' | 'di' | 'seawater' | 'prefilter' | 'uv' | 'softener' | 'booster';
+export type EquipmentType =
+  | 'ro'         // 역삼투압 시스템 (WRO)
+  | 'cooling'    // 냉각수 스케일제거 시스템 (DCRO)
+  | 'di'         // 초순수/DI 시스템 (WDI)
+  | 'seawater'   // 해수담수화 시스템 (WSRO)
+  | 'uf'         // 양액회수·재생 시스템 (WUF)
+  | 'small'      // 소형 시스템 (T05/T20)
+  | 'prefilter'  // 전처리 필터
+  | 'uv'         // UV살균 시스템 (WUV)
+  | 'softener'   // 연수 시스템 (WSF)
+  | 'filtration' // 여과 시스템
+  | 'booster';   // 부스터펌프
 export type EquipmentStatus = 'normal' | 'warning' | 'error' | 'offline' | 'maintenance';
 export type FilterStatus = 'normal' | 'warning' | 'replace' | 'replaced';
 export type AlertSeverity = 'critical' | 'warning' | 'info';

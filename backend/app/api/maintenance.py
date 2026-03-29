@@ -184,6 +184,10 @@ async def delete_maintenance(maintenance_id: str):
     try:
         pool = await get_pool()
         async with pool.acquire() as conn:
-            await conn.execute("DELETE FROM maintenance_records WHERE id = $1", maintenance_id)
+            result = await conn.execute("DELETE FROM maintenance_records WHERE id = $1", maintenance_id)
+            if result == "DELETE 0":
+                raise HTTPException(status_code=404, detail="유지보수 기록을 찾을 수 없습니다")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

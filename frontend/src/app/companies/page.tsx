@@ -29,16 +29,19 @@ interface Company {
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [cityFilter, setCityFilter] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       const data = await companiesApi.list(search ? { search } : undefined);
       setCompanies(data as Company[]);
-    } catch {
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '업체 목록을 불러오지 못했습니다.');
       setCompanies([]);
     } finally {
       setLoading(false);
@@ -108,6 +111,12 @@ export default function CompaniesPage() {
         onClose={() => setShowAddModal(false)}
         onSuccess={load}
       />
+
+      {error && (
+        <div className="flex items-center gap-2 p-3 mb-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+          <span className="shrink-0">⚠️</span> {error}
+        </div>
+      )}
 
       {/* Company Cards */}
       {loading ? (

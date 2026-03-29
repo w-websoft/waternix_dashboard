@@ -14,6 +14,10 @@ from app.api import equipment, companies
 from app.api import consumables, maintenance
 from app.api import alerts as alerts_router
 from app.api import filters as filters_router
+from app.api import catalog as catalog_router
+from app.api import auth as auth_router
+from app.api import equipment_catalog as equipment_catalog_router
+from app.api import system_settings as system_settings_router
 from app.db.database import init_pool, close_pool
 
 # 로깅 설정
@@ -127,12 +131,16 @@ app.add_middleware(
 )
 
 # API 라우터 등록
+app.include_router(auth_router.router, prefix="/api")
 app.include_router(equipment.router, prefix="/api")
 app.include_router(companies.router, prefix="/api")
 app.include_router(consumables.router, prefix="/api")
 app.include_router(maintenance.router, prefix="/api")
 app.include_router(alerts_router.router, prefix="/api")
 app.include_router(filters_router.router, prefix="/api")
+app.include_router(catalog_router.router, prefix="/api")
+app.include_router(equipment_catalog_router.router, prefix="/api")
+app.include_router(system_settings_router.router, prefix="/api")
 
 # Socket.IO ASGI 앱 마운트
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app)

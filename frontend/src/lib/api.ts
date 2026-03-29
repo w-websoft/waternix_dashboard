@@ -3,9 +3,16 @@
  * NEXT_PUBLIC_API_URL 환경변수로 API 서버 주소 설정
  */
 
-const BASE = process.env.NEXT_PUBLIC_API_URL
-  ? `${process.env.NEXT_PUBLIC_API_URL}/api`
+const _apiUrl = process.env.NEXT_PUBLIC_API_URL;
+const BASE = (_apiUrl && _apiUrl.startsWith('http'))
+  ? `${_apiUrl}/api`
   : '/api';
+
+function getAuthHeaders(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  const token = localStorage.getItem('waternix_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 async function request<T>(
   path: string,
@@ -13,7 +20,7 @@ async function request<T>(
 ): Promise<T> {
   const url = `${BASE}${path}`;
   const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders(), ...options.headers },
     ...options,
   });
   if (!res.ok) {
@@ -27,6 +34,27 @@ async function request<T>(
   if (res.status === 204) return undefined as T;
   return res.json();
 }
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+
+export interface DashboardSummary {
+  total_equipment: number;
+  normal_count: number;
+  warning_count: number;
+  error_count: number;
+  offline_count: number;
+  maintenance_count: number;
+  total_companies: number;
+  today_volume: number;
+  monthly_volume: number;
+  pending_maintenance: number;
+  filter_replace: number;
+  unresolved_alerts: number;
+}
+
+export const dashboardApi = {
+  getSummary: () => request<DashboardSummary>('/dashboard/summary'),
+};
 
 // ─── Company ──────────────────────────────────────────────────────────────────
 
@@ -48,16 +76,21 @@ export interface CompanyPayload {
   updated_at?: string;
 }
 
+export interface CompanyDetailPayload extends CompanyPayload {
+  equipment_count?: number;
+}
+
 export const companiesApi = {
   list: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return request<CompanyPayload[]>(`/companies${qs}`);
+    return request<CompanyDetailPayload[]>(`/companies${qs}`);
   },
   create: (data: CompanyPayload) =>
-    request<CompanyPayload>('/companies', { method: 'POST', body: JSON.stringify(data) }),
-  get: (id: string) => request<CompanyPayload>(`/companies/${id}`),
+    request<CompanyDetailPayload>('/companies', { method: 'POST', body: JSON.stringify(data) }),
+  get: (id: string) => request<CompanyDetailPayload>(`/companies/${id}`),
   update: (id: string, data: Partial<CompanyPayload>) =>
-    request<CompanyPayload>(`/companies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    request<CompanyDetailPayload>(`/companies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  getEquipment: (id: string) => request<EquipmentPayload[]>(`/companies/${id}/equipment`),
 };
 
 // ─── Equipment ────────────────────────────────────────────────────────────────
@@ -234,4 +267,111 @@ export const filtersApi = {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
     return request<FilterPayload[]>(`/filters${qs}`);
   },
+  create: (data: Partial<FilterPayload>) =>
+    request<FilterPayload>('/filters', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<FilterPayload>) =>
+    request<FilterPayload>(`/filters/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/filters/${id}`, { method: 'DELETE' }),
+};
+
+// ─── Equipment Catalog (워터닉스 자사 제품 카탈로그) ─────────────────────────
+
+export interface EquipmentCatalogItem {
+  id: string;
+  model_code: string;
+  model_name: string;
+  equipment_type: string;
+  series?: string;
+  category?: string;
+  description?: string;
+  specs?: Record<string, unknown>;
+  default_consumables?: Array<{ part_no: string; name: string; interval_days: number }>;
+  warranty_months: number;
+  sell_price?: number;
+  cost_price?: number;
+  lead_time_days: number;
+  image_url?: string;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export const equipmentCatalogApi = {
+  list: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return request<EquipmentCatalogItem[]>(`/equipment-catalog${qs}`);
+  },
+  get: (modelCode: string) => request<EquipmentCatalogItem>(`/equipment-catalog/${encodeURIComponent(modelCode)}`),
+  create: (data: Partial<EquipmentCatalogItem>) =>
+    request<EquipmentCatalogItem>('/equipment-catalog', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<EquipmentCatalogItem>) =>
+    request<EquipmentCatalogItem>(`/equipment-catalog/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/equipment-catalog/${id}`, { method: 'DELETE' }),
+  seed: () => request<{ inserted: number; total: number }>('/equipment-catalog/seed', { method: 'POST' }),
+};
+
+// ─── Consumable Catalog (소모품/부품 카탈로그) ────────────────────────────────
+
+export interface ConsumableCatalogItem {
+  id: string;
+  part_no: string;
+  name: string;
+  category?: string;
+  equipment_type?: string;
+  compatible_models?: string[];
+  unit: string;
+  replace_interval_hours?: number;
+  sell_price?: number;
+  cost_price?: number;
+  min_order_qty: number;
+  supplier?: string;
+  description?: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export const consumableCatalogApi = {
+  list: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return request<ConsumableCatalogItem[]>(`/catalog${qs}`);
+  },
+  create: (data: Partial<ConsumableCatalogItem>) =>
+    request<ConsumableCatalogItem>('/catalog', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<ConsumableCatalogItem>) =>
+    request<ConsumableCatalogItem>(`/catalog/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/catalog/${id}`, { method: 'DELETE' }),
+  seed: () => request<{ inserted: number; skipped: number }>('/catalog/seed', { method: 'POST' }),
+};
+
+// ─── System Settings ──────────────────────────────────────────────────────────
+
+export const systemSettingsApi = {
+  getAll: () => request<Record<string, { value: string; category: string; description: string }>>('/settings'),
+  getByCategory: (category: string) => request<Record<string, string>>(`/settings/${category}`),
+  update: (payload: Record<string, string>) =>
+    request<{ message: string }>('/settings', { method: 'PATCH', body: JSON.stringify(payload) }),
+};
+
+// ─── Auth Users ────────────────────────────────────────────────────────────────
+
+export interface UserRecord {
+  id: string;
+  username: string;
+  email: string;
+  full_name?: string;
+  role: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export const authUsersApi = {
+  list: () => request<UserRecord[]>('/auth/users'),
+  create: (data: { username: string; email: string; password: string; full_name?: string; role: string }) =>
+    request<UserRecord>('/auth/users', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<UserRecord>) =>
+    request<{ message: string }>(`/auth/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/auth/users/${id}`, { method: 'DELETE' }),
+  changePassword: (data: { current_password: string; new_password: string }) =>
+    request<{ message: string }>('/auth/change-password', { method: 'POST', body: JSON.stringify(data) }),
 };

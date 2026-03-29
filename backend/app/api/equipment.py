@@ -10,10 +10,7 @@ from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Query
 
 from app.db.database import get_pool
-from app.models.schemas import (
-    EquipmentCreate, EquipmentUpdate, EquipmentResponse,
-    EquipmentMapPoint, SensorDataResponse, AlertResponse
-)
+from app.models.schemas import EquipmentCreate, EquipmentUpdate
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/equipment", tags=["장비 관리"])
@@ -21,20 +18,16 @@ router = APIRouter(prefix="/equipment", tags=["장비 관리"])
 
 def _row_to_equipment(row) -> dict:
     d = dict(row)
-    d["id"] = str(d["id"])
-    if d.get("company_id"):
-        d["company_id"] = str(d["company_id"])
+    d["id"] = str(d["id"]) if d.get("id") else d.get("id")
     if d.get("install_date"):
         d["install_date"] = str(d["install_date"])
     if d.get("warranty_end"):
         d["warranty_end"] = str(d["warranty_end"])
-    if d.get("last_seen"):
-        d["last_seen"] = d["last_seen"].isoformat()
     if d.get("created_at"):
         d["created_at"] = d["created_at"].isoformat()
     if d.get("updated_at"):
         d["updated_at"] = d["updated_at"].isoformat()
-    # comm_config JSONB 처리 (있는 경우)
+    # comm_config JSONB 처리
     if d.get("comm_config") and isinstance(d["comm_config"], str):
         try:
             d["comm_config"] = json.loads(d["comm_config"])
@@ -125,21 +118,28 @@ async def create_equipment(data: EquipmentCreate):
                 comm_port = cfg.get("port")
                 comm_slave_id = cfg.get("slave_id")
 
+            # company_name 먼저 조회
+            comp = await conn.fetchrow(
+                "SELECT name FROM companies WHERE id = $1", str(data.company_id)
+            )
+            company_name = comp["name"] if comp else None
+
             row = await conn.fetchrow(
                 """
                 INSERT INTO equipment (
-                    id, company_id, serial_no, model, equipment_type, name,
+                    id, company_id, company_name, serial_no, model, equipment_type, name,
                     lat, lng, address, city, district,
                     install_date, warranty_end, capacity_lph,
                     comm_type, comm_host, comm_port, comm_slave_id, status
                 ) VALUES (
-                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-                    $12, $13, $14, $15, $16, $17, $18, 'offline'
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+                    $13, $14, $15, $16, $17, $18, $19, 'offline'
                 )
                 RETURNING *
                 """,
                 eq_id,
                 str(data.company_id),
+                company_name,
                 data.serial_no,
                 data.model,
                 data.equipment_type.value,
@@ -158,11 +158,6 @@ async def create_equipment(data: EquipmentCreate):
                 comm_slave_id,
             )
             result = _row_to_equipment(row)
-            # company_name 조회
-            comp = await conn.fetchrow(
-                "SELECT name FROM companies WHERE id = $1", str(data.company_id)
-            )
-            result["company_name"] = comp["name"] if comp else None
             return result
     except Exception as e:
         logger.error(f"장비 등록 오류: {e}")
@@ -190,7 +185,7 @@ async def get_map_data(
             rows = await conn.fetch(
                 f"""
                 SELECT e.id, e.name, e.model, e.equipment_type, e.status,
-                       e.lat, e.lng, e.city, e.last_seen,
+                       e.lat, e.lng, e.city, e.updated_at AS last_seen,
                        c.name AS company_name
                 FROM equipment e
                 LEFT JOIN companies c ON e.company_id = c.id
@@ -241,10 +236,13 @@ async def update_equipment(equipment_id: str, data: EquipmentUpdate):
         async with pool.acquire() as conn:
             fields = []
             params: list = []
-            update_data = data.model_dump(exclude_none=True)
+            update_data = data.model_dump(exclude_none=True, mode='json')
             if "comm_config" in update_data and update_data["comm_config"]:
                 update_data["comm_config"] = json.dumps(update_data["comm_config"])
             for field, val in update_data.items():
+                # Enum 값이면 .value 추출
+                if hasattr(val, "value"):
+                    val = val.value
                 params.append(val)
                 if field == "comm_config":
                     fields.append(f"{field} = ${len(params)}::jsonb")
@@ -311,28 +309,27 @@ async def get_equipment_alerts(equipment_id: str, resolved: bool = False):
     try:
         pool = await get_pool()
         async with pool.acquire() as conn:
+            if resolved:
+                cond = "a.process_step = 'completed'"
+            else:
+                cond = "a.process_step != 'completed'"
             rows = await conn.fetch(
-                """
-                SELECT a.*, e.name AS equipment_name, c.name AS company_name
+                f"""
+                SELECT a.*
                 FROM alerts a
-                LEFT JOIN equipment e ON a.equipment_id = e.id
-                LEFT JOIN companies c ON a.company_id = c.id
                 WHERE a.equipment_id = $1
-                  AND ($2 OR a.resolved_at IS NULL)
+                  AND {cond}
                 ORDER BY a.created_at DESC
                 LIMIT 50
                 """,
                 equipment_id,
-                resolved,
             )
             result = []
             for r in rows:
                 d = dict(r)
-                d["id"] = str(d["id"])
-                d["equipment_id"] = str(d["equipment_id"])
-                d["company_id"] = str(d["company_id"])
-                if d.get("created_at"):
-                    d["created_at"] = d["created_at"].isoformat()
+                for k in ["created_at", "process_updated_at"]:
+                    if d.get(k):
+                        d[k] = d[k].isoformat()
                 result.append(d)
             return result
     except Exception as e:

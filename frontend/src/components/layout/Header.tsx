@@ -1,8 +1,9 @@
 'use client';
 
-import { Bell, RefreshCw, Menu, Search, X } from 'lucide-react';
+import { Bell, RefreshCw, Menu, Search, X, LogOut } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { mockAlerts } from '@/lib/mock-data';
+import { useRouter } from 'next/navigation';
+import { alertsApi } from '@/lib/api';
 import Link from 'next/link';
 
 interface HeaderProps {
@@ -14,7 +15,21 @@ interface HeaderProps {
 export default function Header({ title, subtitle, onMenuToggle }: HeaderProps) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [searchOpen, setSearchOpen] = useState(false);
-  const unreadAlerts = mockAlerts.filter(a => !a.acknowledged).length;
+  const [unreadAlerts, setUnreadAlerts] = useState(0);
+  const router = useRouter();
+
+  const handleLogout = () => {
+    localStorage.removeItem('waternix_token');
+    localStorage.removeItem('waternix_user');
+    document.cookie = 'waternix_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    router.replace('/login');
+  };
+
+  useEffect(() => {
+    alertsApi.list({ resolved: 'false' })
+      .then(data => setUnreadAlerts(data.length))
+      .catch(() => setUnreadAlerts(0));
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -27,10 +42,10 @@ export default function Header({ title, subtitle, onMenuToggle }: HeaderProps) {
       <div className="flex items-center justify-between gap-2">
         {/* 왼쪽: 햄버거 + 타이틀 */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          {/* 햄버거 버튼 (모바일 전용) */}
+          {/* 햄버거 버튼 (모바일/태블릿) */}
           <button
             onClick={onMenuToggle}
-            className="md:hidden p-2 -ml-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex-shrink-0"
+            className="lg:hidden p-2 -ml-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex-shrink-0"
           >
             <Menu className="w-5 h-5" />
           </button>
@@ -84,6 +99,14 @@ export default function Header({ title, subtitle, onMenuToggle }: HeaderProps) {
               </span>
             )}
           </Link>
+
+          <button
+            onClick={handleLogout}
+            title="로그아웃"
+            className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </div>
 

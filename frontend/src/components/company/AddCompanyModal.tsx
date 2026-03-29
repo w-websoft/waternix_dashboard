@@ -66,7 +66,7 @@ export default function AddCompanyModal({ open, onClose, onAdd, onSuccess }: Pro
     setLoading(true);
     setApiError('');
     try {
-      const result = await companiesApi.create({
+      await companiesApi.create({
         name: form.name,
         business_no: form.businessNo || undefined,
         contact: form.contact || undefined,
@@ -77,6 +77,7 @@ export default function AddCompanyModal({ open, onClose, onAdd, onSuccess }: Pro
         district: form.district || undefined,
         contract_start: form.contractStart || undefined,
         contract_end: form.contractEnd || undefined,
+        notes: form.notes || undefined,
         status: 'active',
       });
       setSaved(true);
@@ -89,27 +90,6 @@ export default function AddCompanyModal({ open, onClose, onAdd, onSuccess }: Pro
       setLoading(false);
     }
   };
-
-  const Field = ({ label, field, placeholder, type = 'text', required = false }: {
-    label: string; field: keyof CompanyForm; placeholder?: string; type?: string; required?: boolean;
-  }) => (
-    <div>
-      <label className="block text-xs font-medium text-slate-500 mb-1">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      <input
-        type={type}
-        value={form[field]}
-        onChange={e => update(field, e.target.value)}
-        placeholder={placeholder}
-        className={cn(
-          'w-full bg-slate-50 text-slate-900 text-sm px-3 py-2 rounded-lg border focus:outline-none focus:border-blue-500 focus:bg-white transition-colors',
-          errors[field] ? 'border-red-400 bg-red-50' : 'border-slate-200'
-        )}
-      />
-      {errors[field] && <p className="text-xs text-red-500 mt-1">{errors[field]}</p>}
-    </div>
-  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -150,10 +130,47 @@ export default function AddCompanyModal({ open, onClose, onAdd, onSuccess }: Pro
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2">
-                    <Field label="업체명(상호)" field="name" placeholder="예: (주)삼성바이오로직스" required />
+                    <label className="block text-xs font-medium text-slate-500 mb-1">
+                      업체명(상호)<span className="text-red-500 ml-0.5">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={form.name}
+                      onChange={e => update('name', e.target.value)}
+                      placeholder="예: (주)삼성바이오로직스"
+                      className={cn(
+                        'w-full bg-slate-50 text-slate-900 text-sm px-3 py-2 rounded-lg border focus:outline-none focus:border-blue-500 focus:bg-white transition-colors',
+                        errors.name ? 'border-red-400 bg-red-50' : 'border-slate-200'
+                      )}
+                    />
+                    {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
                   </div>
-                  <Field label="사업자등록번호" field="businessNo" placeholder="000-00-00000" />
-                  <Field label="담당자명" field="contact" placeholder="홍길동" required />
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">사업자등록번호</label>
+                    <input
+                      type="text"
+                      value={form.businessNo}
+                      onChange={e => update('businessNo', e.target.value)}
+                      placeholder="000-00-00000"
+                      className="w-full bg-slate-50 text-slate-900 text-sm px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-blue-500 focus:bg-white transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">
+                      담당자명<span className="text-red-500 ml-0.5">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={form.contact}
+                      onChange={e => update('contact', e.target.value)}
+                      placeholder="홍길동"
+                      className={cn(
+                        'w-full bg-slate-50 text-slate-900 text-sm px-3 py-2 rounded-lg border focus:outline-none focus:border-blue-500 focus:bg-white transition-colors',
+                        errors.contact ? 'border-red-400 bg-red-50' : 'border-slate-200'
+                      )}
+                    />
+                    {errors.contact && <p className="text-xs text-red-500 mt-1">{errors.contact}</p>}
+                  </div>
                 </div>
               </div>
 
@@ -164,8 +181,32 @@ export default function AddCompanyModal({ open, onClose, onAdd, onSuccess }: Pro
                   <span className="text-sm font-semibold text-slate-700">연락처</span>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="전화번호" field="phone" placeholder="02-0000-0000" required />
-                  <Field label="이메일" field="email" placeholder="contact@company.com" type="email" />
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">
+                      전화번호<span className="text-red-500 ml-0.5">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={form.phone}
+                      onChange={e => update('phone', e.target.value)}
+                      placeholder="02-0000-0000"
+                      className={cn(
+                        'w-full bg-slate-50 text-slate-900 text-sm px-3 py-2 rounded-lg border focus:outline-none focus:border-blue-500 focus:bg-white transition-colors',
+                        errors.phone ? 'border-red-400 bg-red-50' : 'border-slate-200'
+                      )}
+                    />
+                    {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">이메일</label>
+                    <input
+                      type="email"
+                      value={form.email}
+                      onChange={e => update('email', e.target.value)}
+                      placeholder="contact@company.com"
+                      className="w-full bg-slate-50 text-slate-900 text-sm px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-blue-500 focus:bg-white transition-colors"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -193,9 +234,31 @@ export default function AddCompanyModal({ open, onClose, onAdd, onSuccess }: Pro
                     </select>
                     {errors.city && <p className="text-xs text-red-500 mt-1">{errors.city}</p>}
                   </div>
-                  <Field label="구/군" field="district" placeholder="강남구" />
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">구/군</label>
+                    <input
+                      type="text"
+                      value={form.district}
+                      onChange={e => update('district', e.target.value)}
+                      placeholder="강남구"
+                      className="w-full bg-slate-50 text-slate-900 text-sm px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-blue-500 focus:bg-white transition-colors"
+                    />
+                  </div>
                   <div className="col-span-2">
-                    <Field label="상세 주소" field="address" placeholder="서울특별시 강남구 테헤란로 518" required />
+                    <label className="block text-xs font-medium text-slate-500 mb-1">
+                      상세 주소<span className="text-red-500 ml-0.5">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={form.address}
+                      onChange={e => update('address', e.target.value)}
+                      placeholder="서울특별시 강남구 테헤란로 518"
+                      className={cn(
+                        'w-full bg-slate-50 text-slate-900 text-sm px-3 py-2 rounded-lg border focus:outline-none focus:border-blue-500 focus:bg-white transition-colors',
+                        errors.address ? 'border-red-400 bg-red-50' : 'border-slate-200'
+                      )}
+                    />
+                    {errors.address && <p className="text-xs text-red-500 mt-1">{errors.address}</p>}
                   </div>
                 </div>
               </div>
@@ -209,24 +272,37 @@ export default function AddCompanyModal({ open, onClose, onAdd, onSuccess }: Pro
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-slate-500 mb-1">계약 시작일</label>
-                    <input type="date" value={form.contractStart} onChange={e => update('contractStart', e.target.value)}
-                      className="w-full bg-slate-50 text-slate-900 text-sm px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-blue-500" />
+                    <input
+                      type="date"
+                      value={form.contractStart}
+                      onChange={e => update('contractStart', e.target.value)}
+                      className="w-full bg-slate-50 text-slate-900 text-sm px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-blue-500"
+                    />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-500 mb-1">
                       계약 만료일<span className="text-red-500 ml-0.5">*</span>
                     </label>
-                    <input type="date" value={form.contractEnd} onChange={e => update('contractEnd', e.target.value)}
+                    <input
+                      type="date"
+                      value={form.contractEnd}
+                      onChange={e => update('contractEnd', e.target.value)}
                       className={cn(
                         'w-full bg-slate-50 text-slate-900 text-sm px-3 py-2 rounded-lg border focus:outline-none focus:border-blue-500',
                         errors.contractEnd ? 'border-red-400' : 'border-slate-200'
-                      )} />
+                      )}
+                    />
                     {errors.contractEnd && <p className="text-xs text-red-500 mt-1">{errors.contractEnd}</p>}
                   </div>
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-slate-500 mb-1">비고</label>
-                    <textarea rows={2} value={form.notes} onChange={e => update('notes', e.target.value)} placeholder="특이사항..."
-                      className="w-full bg-slate-50 text-slate-900 text-sm px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-blue-500 resize-none" />
+                    <textarea
+                      rows={2}
+                      value={form.notes}
+                      onChange={e => update('notes', e.target.value)}
+                      placeholder="특이사항..."
+                      className="w-full bg-slate-50 text-slate-900 text-sm px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-blue-500 resize-none"
+                    />
                   </div>
                 </div>
               </div>
