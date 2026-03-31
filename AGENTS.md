@@ -7,8 +7,8 @@
 ## 프로젝트 개요
 
 **프로젝트명**: 워터닉스(WATERNIX) IoT 수처리 장비 통합 관리 시스템  
-**버전**: v4.0.0  
-**상태**: 제품 카탈로그 시스템 완성 + 서버 배포 완료 (2026-03-29)  
+**버전**: v5.0.0  
+**상태**: 백오피스 핵심 모듈 완성 (A/S·견적·계약) (2026-03-28)  
 **저장소**: https://github.com/w-websoft/waternix_dashboard.git  
 **로컬 경로**: `/Users/wongyun_w/Desktop/water_dashboard`  
 **운영 서버**: https://gwaternix.w-websoftsrv.kr  
@@ -157,6 +157,9 @@ water_dashboard/
 │   │   │   ├── equipment/page.tsx     ← 장비 관리
 │   │   │   ├── companies/page.tsx     ← 업체 관리
 │   │   │   ├── catalog/page.tsx       ← 제품 카탈로그 관리 (v4.0 신규)
+│   │   │   ├── service/page.tsx       ← A/S 서비스 관리 (v5.0 신규)
+│   │   │   ├── quotations/page.tsx    ← 견적서 관리 (v5.0 신규)
+│   │   │   ├── contracts/page.tsx     ← 계약 관리 (v5.0 신규)
 │   │   │   ├── maintenance/page.tsx   ← 유지보수
 │   │   │   ├── consumables/page.tsx   ← 소모품/필터
 │   │   │   ├── alerts/page.tsx        ← 알림 관리
@@ -187,7 +190,10 @@ water_dashboard/
 │   │   │   ├── maintenance.py         ← 유지보수 API
 │   │   │   ├── alerts.py              ← 알림 API
 │   │   │   ├── consumables.py         ← 재고 관리 API
-│   │   │   └── system_settings.py     ← 시스템 설정 DB 저장 API (v4.0 신규)
+│   │   │   ├── system_settings.py     ← 시스템 설정 DB 저장 API (v4.0 신규)
+│   │   │   ├── service_requests.py    ← A/S 서비스 요청 API (v5.0 신규)
+│   │   │   ├── quotations.py          ← 견적서 관리 API (v5.0 신규)
+│   │   │   └── contracts.py           ← 계약 관리 API (v5.0 신규)
 │   │   ├── models/schemas.py          ← Pydantic v2 스키마 (모든 모델)
 │   │   └── services/communication/
 │   │       ├── __init__.py
