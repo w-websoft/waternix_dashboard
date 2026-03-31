@@ -375,3 +375,147 @@ export const authUsersApi = {
   changePassword: (data: { current_password: string; new_password: string }) =>
     request<{ message: string }>('/auth/change-password', { method: 'POST', body: JSON.stringify(data) }),
 };
+
+// ─── Service Requests (A/S 서비스 요청) ──────────────────────────────────────
+
+export interface ServiceRequest {
+  id: string;
+  request_no: string;
+  equipment_id?: string;
+  company_id?: string;
+  equipment_name?: string;
+  company_name?: string;
+  request_type: string;
+  priority: string;
+  title: string;
+  description?: string;
+  assigned_technician_id?: string;
+  technician_name?: string;
+  status: string;
+  scheduled_date?: string;
+  arrived_at?: string;
+  completed_at?: string;
+  parts_used?: Array<{ name: string; qty: number; unit_price?: number }>;
+  labor_hours?: number;
+  labor_cost?: number;
+  parts_cost?: number;
+  total_cost?: number;
+  report_notes?: string;
+  customer_rating?: number;
+  customer_feedback?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServiceRequestListResponse {
+  items: ServiceRequest[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export const serviceRequestApi = {
+  list: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return request<ServiceRequestListResponse>(`/service-requests${qs}`);
+  },
+  get: (id: string) => request<ServiceRequest>(`/service-requests/${id}`),
+  stats: () => request<{ open_count: number; completed_count: number; urgent_count: number; pending_dispatch: number; monthly: number }>('/service-requests/stats'),
+  create: (data: Partial<ServiceRequest>) =>
+    request<ServiceRequest>('/service-requests', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<ServiceRequest>) =>
+    request<ServiceRequest>(`/service-requests/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  dispatch: (id: string, data: { technician_id?: string; technician_name: string; scheduled_date?: string }) =>
+    request<ServiceRequest>(`/service-requests/${id}/dispatch`, { method: 'PATCH', body: JSON.stringify(data) }),
+  updateStatus: (id: string, status: string) =>
+    request<ServiceRequest>(`/service-requests/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  complete: (id: string, data: object) =>
+    request<ServiceRequest>(`/service-requests/${id}/complete`, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/service-requests/${id}`, { method: 'DELETE' }),
+};
+
+// ─── Quotations (견적서) ────────────────────────────────────────────────────────
+
+export interface QuotationItem {
+  type: string;
+  model_code?: string;
+  name: string;
+  qty: number;
+  unit_price: number;
+  amount: number;
+  notes?: string;
+}
+
+export interface Quotation {
+  id: string;
+  quote_no: string;
+  company_id?: string;
+  company_name?: string;
+  contact_name?: string;
+  contact_email?: string;
+  contact_phone?: string;
+  items: QuotationItem[];
+  subtotal: number;
+  tax: number;
+  total: number;
+  valid_until?: string;
+  status: string;
+  notes?: string;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export const quotationApi = {
+  list: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return request<{ items: Quotation[]; total: number }>(`/quotations${qs}`);
+  },
+  get: (id: string) => request<Quotation>(`/quotations/${id}`),
+  create: (data: Partial<Quotation>) =>
+    request<Quotation>('/quotations', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<Quotation>) =>
+    request<Quotation>(`/quotations/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  send: (id: string) => request<Quotation>(`/quotations/${id}/send`, { method: 'PATCH' }),
+  accept: (id: string) => request<{ message: string; contract_no: string }>(`/quotations/${id}/accept`, { method: 'PATCH' }),
+  delete: (id: string) => request<void>(`/quotations/${id}`, { method: 'DELETE' }),
+};
+
+// ─── Contracts (계약 관리) ──────────────────────────────────────────────────────
+
+export interface Contract {
+  id: string;
+  contract_no: string;
+  company_id?: string;
+  company_name?: string;
+  quotation_id?: string;
+  contract_type: string;
+  contract_type_label?: string;
+  title?: string;
+  start_date?: string;
+  end_date?: string;
+  amount: number;
+  payment_terms?: string;
+  scope?: string;
+  status: string;
+  assigned_sales_id?: string;
+  sales_name?: string;
+  notes?: string;
+  days_remaining?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export const contractApi = {
+  list: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return request<{ items: Contract[]; total: number }>(`/contracts${qs}`);
+  },
+  get: (id: string) => request<Contract>(`/contracts/${id}`),
+  expiring: () => request<Contract[]>('/contracts/expiring'),
+  create: (data: Partial<Contract>) =>
+    request<Contract>('/contracts', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<Contract>) =>
+    request<Contract>(`/contracts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/contracts/${id}`, { method: 'DELETE' }),
+};

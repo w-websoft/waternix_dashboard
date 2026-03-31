@@ -3,24 +3,27 @@
 import { use, useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { companiesApi, maintenanceApi, filtersApi } from '@/lib/api';
-import type { CompanyDetailPayload, EquipmentPayload, MaintenancePayload, FilterPayload } from '@/lib/api';
+import { companiesApi, maintenanceApi, filtersApi, contractApi, serviceRequestApi } from '@/lib/api';
+import type { CompanyDetailPayload, EquipmentPayload, MaintenancePayload, FilterPayload, Contract, ServiceRequest } from '@/lib/api';
 import { STATUS_CONFIG, EQUIPMENT_TYPE_CONFIG, formatDate, formatRelativeTime, cn } from '@/lib/utils';
 import {
   ArrowLeft, ChevronRight, Building2, Phone, Mail, MapPin,
   Users, Calendar, Shield, Cpu, Filter, Wrench,
   AlertTriangle, CheckCircle2, Clock, ExternalLink, Loader2,
+  FileSignature, HeadphonesIcon,
 } from 'lucide-react';
 import AddEquipmentModal from '@/components/equipment/AddEquipmentModal';
 import AddMaintenanceModal from '@/components/maintenance/AddMaintenanceModal';
 
-type Tab = 'overview' | 'equipment' | 'filters' | 'maintenance';
+type Tab = 'overview' | 'equipment' | 'filters' | 'maintenance' | 'contracts' | 'service';
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'overview',    label: '업체 정보',  icon: <Building2 className="w-4 h-4" /> },
   { id: 'equipment',   label: '설치 장비',  icon: <Cpu className="w-4 h-4" /> },
   { id: 'filters',     label: '필터 현황',  icon: <Filter className="w-4 h-4" /> },
-  { id: 'maintenance', label: '유지보수',    icon: <Wrench className="w-4 h-4" /> },
+  { id: 'maintenance', label: '유지보수',   icon: <Wrench className="w-4 h-4" /> },
+  { id: 'contracts',   label: '계약',       icon: <FileSignature className="w-4 h-4" /> },
+  { id: 'service',     label: 'A/S',        icon: <HeadphonesIcon className="w-4 h-4" /> },
 ];
 
 const FILTER_STATUS: Record<string, { label: string; color: string; bg: string }> = {
@@ -37,6 +40,8 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
   const [equipment, setEquipment] = useState<EquipmentPayload[]>([]);
   const [maintenances, setMaintenances] = useState<MaintenancePayload[]>([]);
   const [filters, setFilters] = useState<FilterPayload[]>([]);
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -48,16 +53,20 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
     setLoading(true);
     setError(false);
     try {
-      const [co, eq, mt, fl] = await Promise.all([
+      const [co, eq, mt, fl, ctr, sr] = await Promise.all([
         companiesApi.get(id),
         companiesApi.getEquipment(id),
         maintenanceApi.list({ company_id: id }),
         filtersApi.list({ company_id: id }),
+        contractApi.list({ company_id: id }).then(r => r.items).catch(() => []),
+        serviceRequestApi.list({ company_id: id }).then(r => r.items).catch(() => []),
       ]);
       setCompany(co);
       setEquipment(eq as EquipmentPayload[]);
       setMaintenances(mt as MaintenancePayload[]);
       setFilters(fl as FilterPayload[]);
+      setContracts(ctr);
+      setServiceRequests(sr);
     } catch {
       setError(true);
     } finally {
@@ -458,6 +467,94 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
             onSuccess={loadData}
             presetCompanyId={id}
           />
+        </div>
+      )}
+
+      {/* ── 계약 탭 ── */}
+      {activeTab === 'contracts' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-slate-500">총 {contracts.length}건 계약</p>
+            <a href="/contracts" className="flex items-center gap-1 text-blue-600 text-sm hover:underline">
+              <ExternalLink className="w-4 h-4" /> 계약 관리 페이지
+            </a>
+          </div>
+          {contracts.length === 0 ? (
+            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+              <FileSignature className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-500">이 업체의 계약이 없습니다</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              {contracts.map((c, i) => {
+                const daysLeft = c.days_remaining;
+                const daysColor = daysLeft === undefined ? 'text-gray-500' : daysLeft < 0 ? 'text-red-600 font-bold' : daysLeft < 30 ? 'text-red-500' : daysLeft < 90 ? 'text-yellow-600' : 'text-green-600';
+                return (
+                  <div key={c.id} className={cn('flex items-start gap-4 p-4', i > 0 && 'border-t border-slate-100')}>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="font-mono text-xs text-gray-500">{c.contract_no}</span>
+                        <span className={cn('text-xs px-2 py-0.5 rounded font-medium', c.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600')}>{c.status === 'active' ? '유효' : c.status}</span>
+                      </div>
+                      <p className="font-semibold text-sm text-slate-800">{c.title || c.contract_no}</p>
+                      <div className="text-xs text-slate-400 mt-1 flex gap-3 flex-wrap">
+                        <span>{c.contract_type_label || c.contract_type}</span>
+                        <span>{c.amount.toLocaleString()}원</span>
+                        {c.end_date && <span className={daysColor}>만료: {c.end_date} ({daysLeft !== undefined ? (daysLeft < 0 ? `만료 ${Math.abs(daysLeft)}일` : `D-${daysLeft}`) : ''})</span>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── A/S 탭 ── */}
+      {activeTab === 'service' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-slate-500">총 {serviceRequests.length}건 A/S 이력</p>
+            <a href="/service" className="flex items-center gap-1 text-blue-600 text-sm hover:underline">
+              <ExternalLink className="w-4 h-4" /> A/S 관리 페이지
+            </a>
+          </div>
+          {serviceRequests.length === 0 ? (
+            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+              <HeadphonesIcon className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-500">이 업체의 A/S 이력이 없습니다</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              {serviceRequests.map((sr, i) => (
+                <div key={sr.id} className={cn('flex items-start gap-4 p-4', i > 0 && 'border-t border-slate-100')}>
+                  <div className={cn('w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0',
+                    sr.status === 'completed' ? 'bg-emerald-500' :
+                    sr.priority === 'urgent' ? 'bg-red-500 animate-pulse' : 'bg-amber-500'
+                  )} />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className="font-mono text-xs text-gray-500">{sr.request_no}</span>
+                      <span className={cn('text-xs px-2 py-0.5 rounded font-medium',
+                        sr.status === 'completed' ? 'bg-green-100 text-green-700' :
+                        sr.status === 'received' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'
+                      )}>
+                        {sr.status === 'received' ? '접수' : sr.status === 'completed' ? '완료' : '처리중'}
+                      </span>
+                      {sr.priority === 'urgent' && <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded font-medium">긴급</span>}
+                    </div>
+                    <p className="font-semibold text-sm text-slate-800">{sr.title}</p>
+                    <div className="text-xs text-slate-400 mt-0.5 flex gap-3 flex-wrap">
+                      {sr.technician_name && <span className="flex items-center gap-1"><Users className="w-3 h-3" />{sr.technician_name}</span>}
+                      {sr.scheduled_date && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{sr.scheduled_date}</span>}
+                      {sr.total_cost && <span>💰 {sr.total_cost.toLocaleString()}원</span>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </DashboardLayout>

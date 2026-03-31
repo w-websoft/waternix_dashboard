@@ -7,7 +7,8 @@ import { cn } from '@/lib/utils';
 import { dashboardApi } from '@/lib/api';
 import {
   LayoutDashboard, MapPin, Wrench, Building2,
-  Package, BarChart3, Settings, Droplets, Bell, ChevronRight, X, Box
+  Package, BarChart3, Settings, Droplets, Bell, ChevronRight, X, Box,
+  HeadphonesIcon, FileText, FileSignature
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -30,15 +31,18 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   }, []);
 
   const NAV_ITEMS = [
-    { href: '/',             icon: LayoutDashboard, label: '대시보드',    badge: null },
-    { href: '/equipment',   icon: MapPin,           label: '장비 관리',   badge: null },
-    { href: '/companies',   icon: Building2,        label: '업체 관리',   badge: null },
-    { href: '/catalog',     icon: Box,              label: '카탈로그',    badge: null },
-    { href: '/maintenance', icon: Wrench,           label: '유지보수',    badge: badges.maintenance || null },
-    { href: '/consumables', icon: Package,          label: '소모품/재고', badge: badges.consumables || null },
-    { href: '/reports',     icon: BarChart3,        label: '보고서',      badge: null },
-    { href: '/alerts',      icon: Bell,             label: '알림 관리',   badge: badges.alerts || null },
-    { href: '/settings',    icon: Settings,         label: '시스템 설정', badge: null },
+    { href: '/',             icon: LayoutDashboard,  label: '대시보드',    badge: null },
+    { href: '/equipment',   icon: MapPin,            label: '장비 관리',   badge: null },
+    { href: '/companies',   icon: Building2,         label: '업체 관리',   badge: null },
+    { href: '/catalog',     icon: Box,               label: '카탈로그',    badge: null },
+    { href: '/maintenance', icon: Wrench,            label: '유지보수',    badge: badges.maintenance || null },
+    { href: '/service',     icon: HeadphonesIcon,    label: 'A/S 관리',    badge: null },
+    { href: '/quotations',  icon: FileText,          label: '견적서',      badge: null },
+    { href: '/contracts',   icon: FileSignature,     label: '계약 관리',   badge: null },
+    { href: '/consumables', icon: Package,           label: '소모품/재고', badge: badges.consumables || null },
+    { href: '/reports',     icon: BarChart3,         label: '보고서',      badge: null },
+    { href: '/alerts',      icon: Bell,              label: '알림 관리',   badge: badges.alerts || null },
+    { href: '/settings',    icon: Settings,          label: '시스템 설정', badge: null },
   ];
 
   return (
