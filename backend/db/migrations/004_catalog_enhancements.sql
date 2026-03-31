@@ -26,5 +26,5 @@ ALTER TABLE companies ADD COLUMN IF NOT EXISTS road_address    TEXT;
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS detail_address  TEXT;
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS zip_code        VARCHAR(10);
 
--- users 테이블 company_id 연동 (업체 계정)
-ALTER TABLE users ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id) ON DELETE SET NULL;
+-- users 테이블 company_id 연동 (업체 계정) - companies.id는 VARCHAR 타입
+ALTER TABLE users ADD COLUMN IF NOT EXISTS company_id VARCHAR(255) REFERENCES companies(id) ON DELETE SET NULL;

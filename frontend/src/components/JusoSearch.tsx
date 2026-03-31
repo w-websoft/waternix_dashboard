@@ -25,6 +25,7 @@ export default function JusoSearch({ onSelect, initialValue, placeholder, label 
   useEffect(() => {
     if (!query || query.length < 2) {
       setResults([]);
+      setOpen(false);
       return;
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -36,30 +37,21 @@ export default function JusoSearch({ onSelect, initialValue, placeholder, label 
         setOpen(items.length > 0);
       } catch {
         setResults([]);
+        setOpen(false);
       } finally {
         setLoading(false);
       }
-    }, 400);
+    }, 500);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [query]);
 
-  const handleSelect = async (r: JusoResult) => {
+  const handleSelect = (r: JusoResult) => {
     setQuery(r.roadAddr);
     setOpen(false);
     setResults([]);
-
-    // Nominatim으로 좌표 조회
-    try {
-      const encoded = encodeURIComponent(`${r.roadAddr}`);
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encoded}&format=json&limit=1&countrycodes=kr`,
-        { headers: { 'Accept-Language': 'ko' } },
-      );
-      const data = await res.json();
-      if (data?.[0]) {
-        onSelect({ ...r, lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
-        return;
-      }
-    } catch { /* fallback */ }
+    // 백엔드가 이미 lat/lng를 포함해서 반환함
     onSelect(r);
   };
 

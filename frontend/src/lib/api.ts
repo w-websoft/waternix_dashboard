@@ -572,22 +572,21 @@ export interface JusoResult {
 }
 
 export const jusoApi = {
-  search: async (keyword: string, confmKey?: string): Promise<JusoResult[]> => {
-    const key = confmKey || process.env.NEXT_PUBLIC_JUSO_API_KEY || 'devtools_key';
-    const params = new URLSearchParams({
-      currentPage: '1',
-      countPerPage: '10',
-      keyword,
-      confmKey: key,
-      resultType: 'json',
-      addInfoYn: 'Y',
-    });
-    const res = await fetch(
-      `https://business.juso.go.kr/addrlink/addrLinkApi.do?${params.toString()}`
-    );
-    if (!res.ok) return [];
-    const data = await res.json();
-    return (data?.results?.juso || []) as JusoResult[];
+  /**
+   * 백엔드 프록시를 통해 도로명주소 검색
+   * - CORS 문제 없이 서버에서 행정안전부 API 호출
+   * - entX/entY 좌표 자동 포함 (없으면 Nominatim 보완)
+   */
+  search: async (keyword: string): Promise<JusoResult[]> => {
+    try {
+      const params = new URLSearchParams({ keyword, per_page: '10' });
+      const res = await fetch(`${BASE}/juso/search?${params.toString()}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return (data?.items || []) as JusoResult[];
+    } catch {
+      return [];
+    }
   },
 };
 
