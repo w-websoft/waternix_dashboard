@@ -122,7 +122,7 @@ async def _geocode_nominatim(address: str) -> Optional[tuple[float, float]]:
 
 
 async def _fallback_nominatim(keyword: str) -> dict:
-    """Juso API 실패 시 Nominatim 검색으로 대체"""
+    """Juso API 실패 시 Nominatim 검색으로 대체 (한국어 주소 정형화)"""
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(
@@ -140,17 +140,38 @@ async def _fallback_nominatim(keyword: str) -> dict:
             items = []
             for d in data:
                 addr = d.get("address", {})
-                road = d.get("display_name", "")
+                # 한국어 주소 조합 (도로명 우선)
+                road_name = addr.get("road") or addr.get("pedestrian") or addr.get("footway", "")
+                city = addr.get("city") or addr.get("town") or addr.get("village") or addr.get("province", "")
+                district = addr.get("city_district") or addr.get("county") or addr.get("borough", "")
+                postcode = addr.get("postcode", "")
+
+                if road_name and city:
+                    road_addr = f"{city} {district} {road_name}".strip()
+                else:
+                    # display_name에서 영문 부분 제거하고 한글만 추출
+                    parts = [p.strip() for p in d.get("display_name", "").split(",")]
+                    ko_parts = [p for p in parts if any('\uAC00' <= c <= '\uD7A3' for c in p)]
+                    road_addr = " ".join(ko_parts[:4]) if ko_parts else d.get("display_name", "")
+
                 items.append({
-                    "roadAddr": road,
-                    "roadAddrPart1": road,
-                    "zipNo": addr.get("postcode", ""),
-                    "siNm": addr.get("city") or addr.get("province") or addr.get("state", ""),
-                    "sggNm": addr.get("city_district") or addr.get("county", ""),
-                    "emdNm": addr.get("suburb") or addr.get("neighbourhood", ""),
+                    "roadAddr": road_addr,
+                    "roadAddrPart1": road_addr,
+                    "zipNo": postcode,
+                    "siNm": city,
+                    "sggNm": district,
+                    "emdNm": addr.get("suburb") or addr.get("neighbourhood") or addr.get("quarter", ""),
                     "lat": float(d["lat"]),
                     "lng": float(d["lon"]),
                 })
-            return {"items": items, "total": len(items)}
+            # 중복 제거
+            seen = set()
+            unique = []
+            for item in items:
+                key = item["roadAddr"][:20]
+                if key not in seen:
+                    seen.add(key)
+                    unique.append(item)
+            return {"items": unique, "total": len(unique)}
     except Exception:
         return {"items": [], "total": 0}
