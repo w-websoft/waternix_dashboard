@@ -6,10 +6,11 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
+import bcrypt as _bcrypt
+
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from pydantic import BaseModel
 
 from app.core.config import settings
@@ -18,8 +19,18 @@ from app.db.database import get_pool
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["인증"])
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer(auto_error=False)
+
+
+def _hash_password(plain: str) -> str:
+    return _bcrypt.hashpw(plain.encode("utf-8"), _bcrypt.gensalt(12)).decode("utf-8")
+
+
+def _verify_password(plain: str, hashed: str) -> bool:
+    try:
+        return _bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    except Exception:
+        return False
 
 ALGORITHM = "HS256"
 ROLE_LABELS = {
@@ -95,7 +106,7 @@ async def login(data: LoginRequest):
                 )
             raise HTTPException(status_code=401, detail="아이디 또는 비밀번호가 올바르지 않습니다")
 
-        if not pwd_context.verify(data.password, user["hashed_password"]):
+        if not _verify_password(data.password, user["hashed_password"]):
             raise HTTPException(status_code=401, detail="아이디 또는 비밀번호가 올바르지 않습니다")
 
         token = create_access_token(
@@ -139,11 +150,11 @@ async def change_password(
             )
             if not user:
                 raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다")
-            if not pwd_context.verify(data.current_password, user["hashed_password"]):
+            if not _verify_password(data.current_password, user["hashed_password"]):
                 raise HTTPException(status_code=400, detail="현재 비밀번호가 올바르지 않습니다")
             if len(data.new_password) < 8:
                 raise HTTPException(status_code=400, detail="새 비밀번호는 8자 이상이어야 합니다")
-            new_hash = pwd_context.hash(data.new_password)
+            new_hash = _hash_password(data.new_password)
             await conn.execute(
                 "UPDATE users SET hashed_password=$1, updated_at=NOW() WHERE id=$2",
                 new_hash, user["id"],
@@ -188,7 +199,7 @@ async def create_user(payload: dict, current_user: dict = Depends(get_current_us
     try:
         pool = await get_pool()
         async with pool.acquire() as conn:
-            hashed = pwd_context.hash(payload.get("password", "Waternix2026!"))
+            hashed = _hash_password(payload.get("password", "Waternix2026!"))
             uid = str(uuid.uuid4())
             row = await conn.fetchrow(
                 """INSERT INTO users (id, username, email, hashed_password, full_name, role)
