@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, RefreshCw, FileText, Send, CheckCircle, X, Trash2 } from 'lucide-react';
-import { quotationApi, Quotation, QuotationItem } from '@/lib/api';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Plus, Search, RefreshCw, FileText, Send, CheckCircle, X, Trash2, Printer, Copy, Package } from 'lucide-react';
+import { quotationApi, companiesApi, equipmentCatalogApi, Quotation, QuotationItem, CompanyDetailPayload, EquipmentCatalogItem } from '@/lib/api';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -29,10 +29,13 @@ export default function QuotationsPage() {
   const [showDetail, setShowDetail] = useState<Quotation | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [companies, setCompanies] = useState<CompanyDetailPayload[]>([]);
+  const [catalog, setCatalog] = useState<EquipmentCatalogItem[]>([]);
   const [form, setForm] = useState({
-    company_name: '', contact_name: '', contact_email: '', contact_phone: '',
+    company_id: '', company_name: '', contact_name: '', contact_email: '', contact_phone: '',
     valid_until: '', notes: '', items: [{ ...EMPTY_ITEM }] as QuotationItem[],
   });
+  const printRef = useRef<HTMLDivElement>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -47,6 +50,29 @@ export default function QuotationsPage() {
   }, [search, statusFilter]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    companiesApi.list().then(setCompanies).catch(() => {});
+    equipmentCatalogApi.list().then(setCatalog).catch(() => {});
+  }, []);
+
+  const handlePrint = () => {
+    if (!showDetail) return;
+    window.print();
+  };
+
+  const addCatalogItem = (cat: EquipmentCatalogItem) => {
+    setForm(prev => ({
+      ...prev,
+      items: [...prev.items, {
+        type: 'equipment',
+        name: `${cat.model_code} - ${cat.model_name}`,
+        qty: 1,
+        unit_price: cat.sell_price || 0,
+        amount: cat.sell_price || 0,
+      }],
+    }));
+  };
 
   const updateItem = (idx: number, field: keyof QuotationItem, value: string | number) => {
     setForm(prev => {
@@ -105,7 +131,7 @@ export default function QuotationsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-end">
         <button
-          onClick={() => { setShowModal(true); setError(''); setForm({ company_name: '', contact_name: '', contact_email: '', contact_phone: '', valid_until: '', notes: '', items: [{ ...EMPTY_ITEM }] }); }}
+          onClick={() => { setShowModal(true); setError(''); setForm({ company_id: '', company_name: '', contact_name: '', contact_email: '', contact_phone: '', valid_until: '', notes: '', items: [{ ...EMPTY_ITEM }] }); }}
           className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
         >
           <Plus className="w-4 h-4" />
@@ -184,7 +210,15 @@ export default function QuotationsPage() {
           <div className="w-full max-w-xl bg-white shadow-xl overflow-y-auto">
             <div className="p-6 border-b border-gray-200 flex items-center justify-between">
               <h2 className="text-lg font-bold">견적서 상세</h2>
-              <button onClick={() => setShowDetail(null)}><X className="w-5 h-5" /></button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handlePrint}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 rounded-lg text-sm hover:bg-slate-50"
+                >
+                  <Printer size={14} /> 인쇄
+                </button>
+                <button onClick={() => setShowDetail(null)}><X className="w-5 h-5" /></button>
+              </div>
             </div>
             <div className="p-6 space-y-4">
               <div className="flex items-center gap-2">
@@ -276,9 +310,23 @@ export default function QuotationsPage() {
             </div>
             <div className="p-6 space-y-4">
               {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg">{error}</div>}
+              {/* 업체 선택 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">업체 선택 *</label>
+                <select
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  value={form.company_id}
+                  onChange={e => {
+                    const co = companies.find(c => c.id === e.target.value);
+                    setForm(prev => ({ ...prev, company_id: e.target.value, company_name: co?.name || '' }));
+                  }}
+                >
+                  <option value="">업체 선택...</option>
+                  {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { key: 'company_name', label: '업체명 *' },
                   { key: 'contact_name', label: '담당자' },
                   { key: 'contact_email', label: '이메일' },
                   { key: 'contact_phone', label: '연락처' },
@@ -300,9 +348,26 @@ export default function QuotationsPage() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-sm font-medium text-gray-700">견적 품목</label>
-                  <button onClick={addItem} className="text-blue-600 text-xs hover:underline flex items-center gap-1">
-                    <Plus className="w-3 h-3" /> 품목 추가
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <select
+                      className="border border-gray-300 rounded px-2 py-1 text-xs"
+                      defaultValue=""
+                      onChange={e => {
+                        if (!e.target.value) return;
+                        const cat = catalog.find(c => c.id === e.target.value);
+                        if (cat) addCatalogItem(cat);
+                        e.target.value = '';
+                      }}
+                    >
+                      <option value="">카탈로그에서 추가...</option>
+                      {catalog.map(c => (
+                        <option key={c.id} value={c.id}>{c.model_code} - {c.model_name}</option>
+                      ))}
+                    </select>
+                    <button onClick={addItem} className="text-blue-600 text-xs hover:underline flex items-center gap-1">
+                      <Plus className="w-3 h-3" /> 직접 추가
+                    </button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   {form.items.map((it, idx) => (

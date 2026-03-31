@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Package,
   Plus,
@@ -17,10 +17,14 @@ import {
   Box,
   Settings2,
   Loader2,
+  Upload,
+  Image as ImageIcon,
+  ExternalLink,
 } from 'lucide-react';
 import {
   equipmentCatalogApi,
   consumableCatalogApi,
+  uploadApi,
   EquipmentCatalogItem,
   ConsumableCatalogItem,
 } from '@/lib/api';
@@ -89,6 +93,22 @@ function EquipmentCatalogModal({ item, onClose, onSaved }: EqModalProps) {
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [imageUploading, setImageUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageUploading(true);
+    try {
+      const result = await uploadApi.uploadImage(file, 'catalog');
+      setForm((prev) => ({ ...prev, image_url: result.url }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '이미지 업로드 실패');
+    } finally {
+      setImageUploading(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!form.model_code || !form.model_name || !form.equipment_type) {
@@ -223,6 +243,44 @@ function EquipmentCatalogModal({ item, onClose, onSaved }: EqModalProps) {
               />
             </div>
           </div>
+          {/* 이미지 업로드 */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">제품 이미지</label>
+            <div className="flex items-start gap-3">
+              <div className="w-24 h-24 border-2 border-dashed border-slate-300 rounded-lg overflow-hidden flex items-center justify-center bg-slate-50 flex-shrink-0">
+                {form.image_url ? (
+                  <img src={form.image_url} alt="제품이미지" className="w-full h-full object-cover" />
+                ) : (
+                  <ImageIcon size={28} className="text-slate-300" />
+                )}
+              </div>
+              <div className="flex-1 space-y-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageUpload}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={imageUploading}
+                  className="flex items-center gap-2 px-3 py-2 border border-slate-300 rounded-lg text-sm hover:bg-slate-50 disabled:opacity-60"
+                >
+                  {imageUploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                  {imageUploading ? '업로드 중...' : '이미지 선택'}
+                </button>
+                <input
+                  type="text"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={form.image_url || ''}
+                  onChange={(e) => setForm({ ...form, image_url: e.target.value })}
+                  placeholder="또는 이미지 URL 직접 입력"
+                />
+              </div>
+            </div>
+          </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">제품 설명</label>
             <textarea
@@ -232,6 +290,63 @@ function EquipmentCatalogModal({ item, onClose, onSaved }: EqModalProps) {
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               placeholder="제품 특징 및 용도를 입력하세요"
             />
+          </div>
+          {/* 물리적 제원 */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">외형 크기 (L×W×H)</label>
+              <input
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={form.dimensions || ''}
+                onChange={(e) => setForm({ ...form, dimensions: e.target.value })}
+                placeholder="예: 600×400×900mm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">무게 (kg)</label>
+              <input
+                type="number"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={form.weight_kg ?? ''}
+                onChange={(e) => setForm({ ...form, weight_kg: e.target.value ? Number(e.target.value) : undefined })}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">전원</label>
+              <input
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={form.power_supply || ''}
+                onChange={(e) => setForm({ ...form, power_supply: e.target.value })}
+                placeholder="예: 220V 60Hz"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">제거율</label>
+              <input
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={form.removal_rate || ''}
+                onChange={(e) => setForm({ ...form, removal_rate: e.target.value })}
+                placeholder="예: 99.5% (염분)"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">시간 유량 (L/h)</label>
+              <input
+                type="number"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={form.flow_rate_lph ?? ''}
+                onChange={(e) => setForm({ ...form, flow_rate_lph: e.target.value ? Number(e.target.value) : undefined })}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">1일 처리량 (m³)</label>
+              <input
+                type="number"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={form.daily_volume_m3 ?? ''}
+                onChange={(e) => setForm({ ...form, daily_volume_m3: e.target.value ? Number(e.target.value) : undefined })}
+              />
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -803,9 +918,37 @@ export default function CatalogPage() {
                       {expandedEq === item.id && (
                         <tr key={`${item.id}-detail`} className="bg-slate-50">
                           <td colSpan={9} className="px-6 py-4">
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-sm">
+                              {/* 제품 이미지 */}
                               <div>
-                                <p className="font-semibold text-slate-600 mb-2">사양</p>
+                                <p className="font-semibold text-slate-600 mb-2">제품 이미지</p>
+                                {item.image_url ? (
+                                  <img src={item.image_url} alt={item.model_name} className="w-full max-w-[180px] h-[130px] object-contain rounded-lg border border-slate-200 bg-white p-2" />
+                                ) : (
+                                  <div className="w-full max-w-[180px] h-[130px] border-2 border-dashed border-slate-300 rounded-lg flex items-center justify-center bg-white">
+                                    <ImageIcon size={32} className="text-slate-300" />
+                                  </div>
+                                )}
+                                {item.catalog_page_url && (
+                                  <a href={item.catalog_page_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 mt-2 text-xs text-blue-600 hover:underline">
+                                    <ExternalLink size={12} /> 카탈로그 보기
+                                  </a>
+                                )}
+                              </div>
+                              {/* 물리 제원 */}
+                              <div>
+                                <p className="font-semibold text-slate-600 mb-2">물리 제원</p>
+                                <ul className="space-y-1 text-slate-600">
+                                  {item.dimensions && <li><span className="text-slate-400">외형:</span> {item.dimensions}</li>}
+                                  {item.weight_kg && <li><span className="text-slate-400">무게:</span> {item.weight_kg}kg</li>}
+                                  {item.power_supply && <li><span className="text-slate-400">전원:</span> {item.power_supply}</li>}
+                                  {item.removal_rate && <li><span className="text-slate-400">제거율:</span> {item.removal_rate}</li>}
+                                  {item.flow_rate_lph && <li><span className="text-slate-400">시간유량:</span> {item.flow_rate_lph.toLocaleString()}L/h</li>}
+                                  {item.daily_volume_m3 && <li><span className="text-slate-400">일처리량:</span> {item.daily_volume_m3}m³/d</li>}
+                                </ul>
+                              </div>
+                              <div>
+                                <p className="font-semibold text-slate-600 mb-2">상세 사양</p>
                                 {item.specs && Object.keys(item.specs).length > 0 ? (
                                   <ul className="space-y-1">
                                     {Object.entries(item.specs).map(([k, v]) => (

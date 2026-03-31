@@ -33,12 +33,58 @@ def _verify_password(plain: str, hashed: str) -> bool:
         return False
 
 ALGORITHM = "HS256"
+
 ROLE_LABELS = {
     "superadmin": "슈퍼관리자",
     "manager": "관리자",
     "technician": "기술자",
     "viewer": "조회자",
+    "company": "업체담당자",
 }
+
+# 역할별 접근 권한 정의
+ROLE_PERMISSIONS = {
+    "superadmin": {
+        "can_manage_users", "can_manage_companies", "can_manage_equipment",
+        "can_manage_catalog", "can_manage_maintenance", "can_view_reports",
+        "can_manage_alerts", "can_manage_service", "can_manage_quotations",
+        "can_manage_contracts", "can_view_dashboard", "can_view_own_equipment",
+    },
+    "manager": {
+        "can_manage_companies", "can_manage_equipment", "can_manage_catalog",
+        "can_manage_maintenance", "can_view_reports", "can_manage_alerts",
+        "can_manage_service", "can_manage_quotations", "can_manage_contracts",
+        "can_view_dashboard", "can_view_own_equipment",
+    },
+    "technician": {
+        "can_manage_maintenance", "can_view_reports", "can_manage_alerts",
+        "can_manage_service", "can_view_dashboard", "can_view_own_equipment",
+    },
+    "viewer": {
+        "can_view_reports", "can_view_dashboard", "can_view_own_equipment",
+    },
+    "company": {
+        "can_view_own_equipment", "can_view_reports",
+        "can_request_service", "can_view_quotations", "can_view_contracts",
+    },
+}
+
+
+def has_permission(user: dict, permission: str) -> bool:
+    role = user.get("role", "viewer")
+    return permission in ROLE_PERMISSIONS.get(role, set())
+
+
+def require_permission(permission: str):
+    """특정 권한이 필요한 엔드포인트용 의존성"""
+    async def _check(current_user: dict = Depends(get_current_user)):
+        if not has_permission(current_user, permission):
+            raise HTTPException(
+                status_code=403,
+                detail=f"이 작업에 필요한 권한({permission})이 없습니다",
+            )
+        return current_user
+    return _check
 
 
 class LoginRequest(BaseModel):
@@ -109,24 +155,28 @@ async def login(data: LoginRequest):
         if not _verify_password(data.password, user["hashed_password"]):
             raise HTTPException(status_code=401, detail="아이디 또는 비밀번호가 올바르지 않습니다")
 
+        user_dict = dict(user)
         token = create_access_token(
             data={
-                "sub": user["username"],
-                "email": user["email"],
-                "role": user["role"],
-                "name": user["full_name"] or user["username"],
-                "user_id": user["id"],
+                "sub": user_dict["username"],
+                "email": user_dict["email"],
+                "role": user_dict["role"],
+                "name": user_dict["full_name"] or user_dict["username"],
+                "user_id": user_dict["id"],
+                "company_id": user_dict.get("company_id"),
             },
         )
         return TokenResponse(
             access_token=token,
             expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             user={
-                "username": user["username"],
-                "email": user["email"],
-                "name": user["full_name"] or user["username"],
-                "role": user["role"],
-                "role_label": ROLE_LABELS.get(user["role"], user["role"]),
+                "username": user_dict["username"],
+                "email": user_dict["email"],
+                "name": user_dict["full_name"] or user_dict["username"],
+                "role": user_dict["role"],
+                "role_label": ROLE_LABELS.get(user_dict["role"], user_dict["role"]),
+                "company_id": user_dict.get("company_id"),
+                "permissions": list(ROLE_PERMISSIONS.get(user_dict["role"], set())),
             },
         )
     except HTTPException:
@@ -202,11 +252,13 @@ async def create_user(payload: dict, current_user: dict = Depends(get_current_us
             hashed = _hash_password(payload.get("password", "Waternix2026!"))
             uid = str(uuid.uuid4())
             row = await conn.fetchrow(
-                """INSERT INTO users (id, username, email, hashed_password, full_name, role)
-                   VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, username, email, full_name, role, is_active""",
+                """INSERT INTO users (id, username, email, hashed_password, full_name, role, company_id)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7)
+                   RETURNING id, username, email, full_name, role, is_active, company_id""",
                 uid, payload["username"], payload["email"], hashed,
                 payload.get("full_name", payload["username"]),
                 payload.get("role", "viewer"),
+                payload.get("company_id"),
             )
             return dict(row)
     except Exception as e:
@@ -221,7 +273,7 @@ async def update_user(user_id: str, payload: dict, current_user: dict = Depends(
         pool = await get_pool()
         async with pool.acquire() as conn:
             fields, params = [], []
-            for k in ("full_name", "role", "is_active"):
+            for k in ("full_name", "role", "is_active", "company_id", "email"):
                 if k in payload:
                     params.append(payload[k])
                     fields.append(f"{k}=${len(params)}")

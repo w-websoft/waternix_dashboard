@@ -286,6 +286,15 @@ export interface EquipmentCatalogItem {
   description?: string;
   specs?: Record<string, unknown>;
   default_consumables?: Array<{ part_no: string; name: string; interval_days: number }>;
+  features?: string[];
+  applications?: string[];
+  dimensions?: string;
+  weight_kg?: number;
+  power_supply?: string;
+  removal_rate?: string;
+  flow_rate_lph?: number;
+  daily_volume_m3?: number;
+  catalog_page_url?: string;
   warranty_months: number;
   sell_price?: number;
   cost_price?: number;
@@ -518,4 +527,89 @@ export const contractApi = {
   update: (id: string, data: Partial<Contract>) =>
     request<Contract>(`/contracts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id: string) => request<void>(`/contracts/${id}`, { method: 'DELETE' }),
+};
+
+// ─── Upload API ────────────────────────────────────────────────────────────────
+
+export const uploadApi = {
+  uploadImage: async (file: File, category = 'catalog'): Promise<{ url: string; filename: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const token = typeof window !== 'undefined' ? localStorage.getItem('waternix_token') : null;
+    const res = await fetch(`${BASE}/uploads/image?category=${category}`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Upload failed' }));
+      throw new Error(err.detail || 'Upload failed');
+    }
+    return res.json();
+  },
+
+  updateCatalogImage: (catalogId: string, imageUrl: string) =>
+    request<{ id: string; image_url: string }>(`/equipment-catalog/${catalogId}/image`, {
+      method: 'PATCH',
+      body: JSON.stringify({ image_url: imageUrl }),
+    }),
+};
+
+// ─── 도로명주소 API (행정안전부 Open API) ───────────────────────────────────────
+
+export interface JusoResult {
+  roadAddr: string;
+  roadAddrPart1: string;
+  addrDetail?: string;
+  zipNo: string;
+  siNm: string;
+  sggNm: string;
+  emdNm: string;
+  x?: string; // 경도
+  y?: string; // 위도
+  lat?: number;
+  lng?: number;
+}
+
+export const jusoApi = {
+  search: async (keyword: string, confmKey?: string): Promise<JusoResult[]> => {
+    const key = confmKey || process.env.NEXT_PUBLIC_JUSO_API_KEY || 'devtools_key';
+    const params = new URLSearchParams({
+      currentPage: '1',
+      countPerPage: '10',
+      keyword,
+      confmKey: key,
+      resultType: 'json',
+      addInfoYn: 'Y',
+    });
+    const res = await fetch(
+      `https://business.juso.go.kr/addrlink/addrLinkApi.do?${params.toString()}`
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data?.results?.juso || []) as JusoResult[];
+  },
+};
+
+// ─── User Management API ──────────────────────────────────────────────────────
+
+export interface UserPayload {
+  id?: string;
+  username: string;
+  email: string;
+  full_name?: string;
+  role: string;
+  company_id?: string;
+  is_active?: boolean;
+  password?: string;
+  created_at?: string;
+}
+
+export const userApi = {
+  list: () => request<UserPayload[]>('/auth/users'),
+  create: (data: Partial<UserPayload> & { password: string }) =>
+    request<UserPayload>('/auth/users', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<UserPayload>) =>
+    request<UserPayload>(`/auth/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/auth/users/${id}`, { method: 'DELETE' }),
 };

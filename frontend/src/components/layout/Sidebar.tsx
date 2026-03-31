@@ -8,7 +8,7 @@ import { dashboardApi } from '@/lib/api';
 import {
   LayoutDashboard, MapPin, Wrench, Building2,
   Package, BarChart3, Settings, Droplets, Bell, ChevronRight, X, Box,
-  HeadphonesIcon, FileText, FileSignature
+  HeadphonesIcon, FileText, FileSignature, Users
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -43,6 +43,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     { href: '/reports',     icon: BarChart3,         label: '보고서',      badge: null },
     { href: '/alerts',      icon: Bell,              label: '알림 관리',   badge: badges.alerts || null },
     { href: '/settings',    icon: Settings,          label: '시스템 설정', badge: null },
+    { href: '/admin/users', icon: Users,              label: '계정 관리',   badge: null },
   ];
 
   return (

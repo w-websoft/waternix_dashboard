@@ -1,10 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { X, ChevronRight, ChevronLeft, Check, Cpu, MapPin, Wifi, Package, Loader2, Box } from 'lucide-react';
 import { EquipmentType, CommType } from '@/types';
 import { cn } from '@/lib/utils';
 import { equipmentApi, companiesApi, filtersApi, equipmentCatalogApi, EquipmentCatalogItem } from '@/lib/api';
+import JusoSearch from '@/components/JusoSearch';
+import type { JusoResult } from '@/lib/api';
+
+const MiniMap = dynamic(() => import('@/components/MiniMap'), { ssr: false });
 
 interface Company {
   id: string;
@@ -854,44 +859,53 @@ export default function AddEquipmentModal({ open, onClose, onAdd, onSuccess, pre
             </div>
           ) : step === 'location' ? (
             <div className="space-y-3">
-              <p className="text-sm text-slate-400">설치 위치를 입력하세요</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">시/도 *</label>
-                  <select
-                    value={form.city}
-                    onChange={e => update('city', e.target.value)}
-                    className="w-full bg-slate-800 text-white text-sm px-3 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none"
-                  >
-                    <option value="">선택</option>
-                    {['서울', '경기', '인천', '부산', '대구', '광주', '대전', '울산', '세종', '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주'].map(c => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">구/군</label>
-                  <input type="text" placeholder="예: 강남구" value={form.district} onChange={e => update('district', e.target.value)}
-                    className="w-full bg-slate-800 text-white text-sm px-3 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none" />
+              <p className="text-sm text-slate-400">설치 위치를 입력하세요 - 주소를 검색하면 좌표가 자동으로 설정됩니다</p>
+
+              {/* 도로명주소 검색 */}
+              <div className="bg-slate-800 rounded-lg p-3 border border-slate-600">
+                <label className="block text-xs text-slate-400 mb-2">도로명주소 검색 *</label>
+                <div className="juso-dark-mode">
+                  <JusoSearch
+                    initialValue={form.address}
+                    placeholder="예: 테헤란로 또는 건물명"
+                    onSelect={(r: JusoResult & { lat?: number; lng?: number }) => {
+                      update('address', r.roadAddr);
+                      update('city', r.siNm?.replace('특별시','').replace('광역시','').replace('특별자치시','') || '');
+                      update('district', r.sggNm || '');
+                      if (r.lat) update('lat', String(r.lat));
+                      if (r.lng) update('lng', String(r.lng));
+                    }}
+                  />
                 </div>
               </div>
+
               <div>
-                <label className="block text-xs text-slate-400 mb-1">상세 주소 *</label>
-                <input type="text" placeholder="예: 서울특별시 강남구 테헤란로 518" value={form.address} onChange={e => update('address', e.target.value)}
+                <label className="block text-xs text-slate-400 mb-1">상세 주소</label>
+                <input type="text" placeholder="층수, 호수 등 상세 정보" value={form.address} onChange={e => update('address', e.target.value)}
                   className="w-full bg-slate-800 text-white text-sm px-3 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none" />
               </div>
+
+              {/* 위도/경도 (자동설정 or 수동) */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">위도</label>
+                  <label className="block text-xs text-slate-400 mb-1">위도 (자동)</label>
                   <input type="number" step="0.0001" placeholder="37.5172" value={form.lat} onChange={e => update('lat', e.target.value)}
                     className="w-full bg-slate-800 text-white text-sm px-3 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none" />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">경도</label>
+                  <label className="block text-xs text-slate-400 mb-1">경도 (자동)</label>
                   <input type="number" step="0.0001" placeholder="127.0473" value={form.lng} onChange={e => update('lng', e.target.value)}
                     className="w-full bg-slate-800 text-white text-sm px-3 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none" />
                 </div>
               </div>
+
+              {/* 미니 지도 (좌표가 있을 때만) */}
+              {form.lat && form.lng && (
+                <div className="rounded-lg overflow-hidden border border-slate-600" style={{ height: 180 }}>
+                  <MiniMap lat={Number(form.lat)} lng={Number(form.lng)} label={form.address || '설치 위치'} />
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-slate-400 mb-1">설치일</label>

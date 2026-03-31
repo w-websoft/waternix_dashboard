@@ -21,6 +21,7 @@ from app.api import system_settings as system_settings_router
 from app.api import service_requests as service_requests_router
 from app.api import quotations as quotations_router
 from app.api import contracts as contracts_router
+from app.api import uploads as uploads_router
 from app.db.database import init_pool, close_pool
 
 # 로깅 설정
@@ -147,6 +148,7 @@ app.include_router(system_settings_router.router, prefix="/api")
 app.include_router(service_requests_router.router, prefix="/api")
 app.include_router(quotations_router.router, prefix="/api")
 app.include_router(contracts_router.router, prefix="/api")
+app.include_router(uploads_router.router, prefix="/api")
 
 # Socket.IO ASGI 앱 마운트
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
