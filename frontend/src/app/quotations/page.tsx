@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Search, RefreshCw, FileText, Send, CheckCircle, X, Trash2 } from 'lucide-react';
 import { quotationApi, Quotation, QuotationItem } from '@/lib/api';
+import DashboardLayout from '@/components/layout/DashboardLayout';
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   draft: { label: '작성중', color: 'bg-gray-100 text-gray-600' },
@@ -100,18 +101,15 @@ export default function QuotationsPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">견적서 관리</h1>
-          <p className="text-sm text-gray-500 mt-1">장비 · 소모품 · 서비스 견적 발행</p>
-        </div>
+    <DashboardLayout title="견적서 관리" subtitle="장비 · 소모품 · 서비스 견적 발행">
+    <div className="space-y-6">
+      <div className="flex items-center justify-end">
         <button
           onClick={() => { setShowModal(true); setError(''); setForm({ company_name: '', contact_name: '', contact_email: '', contact_phone: '', valid_until: '', notes: '', items: [{ ...EMPTY_ITEM }] }); }}
           className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
         >
           <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">견적서 작성</span>
+          <span>견적서 작성</span>
         </button>
       </div>
 
@@ -346,5 +344,6 @@ export default function QuotationsPage() {
         </div>
       )}
     </div>
+    </DashboardLayout>
   );
 }

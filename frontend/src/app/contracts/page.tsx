@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Search, RefreshCw, FileSignature, AlertCircle, X, Trash2 } from 'lucide-react';
 import { contractApi, Contract } from '@/lib/api';
+import DashboardLayout from '@/components/layout/DashboardLayout';
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   draft: { label: '초안', color: 'bg-gray-100 text-gray-600' },
@@ -83,18 +84,15 @@ export default function ContractsPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">계약 관리</h1>
-          <p className="text-sm text-gray-500 mt-1">납품 · 유지보수 · 위탁 계약 관리</p>
-        </div>
+    <DashboardLayout title="계약 관리" subtitle="납품 · 유지보수 · 위탁 계약 관리">
+    <div className="space-y-6">
+      <div className="flex items-center justify-end">
         <button
           onClick={() => { setShowModal(true); setError(''); setForm({ ...EMPTY_FORM }); }}
           className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
         >
           <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">계약 등록</span>
+          <span>계약 등록</span>
         </button>
       </div>
 
@@ -307,5 +305,6 @@ export default function ContractsPage() {
         </div>
       )}
     </div>
+    </DashboardLayout>
   );
 }

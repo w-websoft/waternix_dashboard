@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Search, RefreshCw, Wrench, Clock, CheckCircle, AlertTriangle, User, Calendar, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { serviceRequestApi, ServiceRequest } from '@/lib/api';
+import DashboardLayout from '@/components/layout/DashboardLayout';
 
 const REQUEST_TYPES: Record<string, string> = {
   breakdown: '고장수리',
@@ -143,18 +144,15 @@ export default function ServicePage() {
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">A/S 서비스 관리</h1>
-          <p className="text-sm text-gray-500 mt-1">접수 · 배차 · 완료 처리</p>
-        </div>
+    <DashboardLayout title="A/S 서비스 관리" subtitle="접수 · 배차 · 완료 처리">
+    <div className="space-y-6">
+      <div className="flex items-center justify-end">
         <button
           onClick={() => { setShowModal(true); setError(''); setForm({ ...EMPTY_FORM }); }}
           className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
         >
           <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">A/S 접수</span>
+          <span>A/S 접수</span>
         </button>
       </div>
 
@@ -466,5 +464,6 @@ export default function ServicePage() {
         </div>
       )}
     </div>
+    </DashboardLayout>
   );
 }

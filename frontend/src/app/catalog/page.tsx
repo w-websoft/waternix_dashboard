@@ -24,6 +24,7 @@ import {
   EquipmentCatalogItem,
   ConsumableCatalogItem,
 } from '@/lib/api';
+import DashboardLayout from '@/components/layout/DashboardLayout';
 
 const EQUIPMENT_TYPES = [
   { value: '', label: '전체 유형' },
@@ -610,13 +611,10 @@ export default function CatalogPage() {
   );
 
   return (
+    <DashboardLayout title="카탈로그 관리" subtitle="워터닉스 자사 제품 및 소모품을 등록·관리합니다">
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">카탈로그 관리</h1>
-          <p className="text-slate-500 text-sm mt-1">워터닉스 자사 제품 및 소모품을 등록·관리합니다</p>
-        </div>
+      {/* 액션 버튼 */}
+      <div className="flex items-center justify-end flex-wrap gap-2">
         <div className="flex items-center gap-2">
           {tab === 'equipment' ? (
             <>
@@ -952,5 +950,6 @@ export default function CatalogPage() {
         />
       )}
     </div>
+    </DashboardLayout>
   );
 }
